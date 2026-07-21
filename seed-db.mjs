@@ -4,23 +4,24 @@
  * além das metas/resultados de exemplo (jul/2026).
  */
 import "dotenv/config";
-import mysql from "mysql2/promise";
+import { Client } from "pg";
 
-const conn = await mysql.createConnection(process.env.DATABASE_URL);
+const conn = new Client({ connectionString: process.env.DATABASE_URL });
+await conn.connect();
 
 // Evita duplicar seed
-const [existing] = await conn.query("SELECT COUNT(*) as c FROM companies");
-if (existing[0].c > 0) {
+const { rows: existingRows } = await conn.query("SELECT COUNT(*) AS c FROM companies");
+if (Number(existingRows[0].c) > 0) {
   console.log("Seed já executado, abortando.");
   await conn.end();
   process.exit(0);
 }
 
-const [cRes] = await conn.query("INSERT INTO companies (name, cnpj) VALUES (?, ?)", [
-  "Grupo Policontrol",
-  null,
-]);
-const companyId = cRes.insertId;
+const { rows: cRows } = await conn.query(
+  "INSERT INTO companies (name, cnpj) VALUES ($1, $2) RETURNING id",
+  ["Grupo Policontrol", null],
+);
+const companyId = cRows[0].id;
 console.log("Empresa:", companyId);
 
 // Perspectivas
@@ -32,11 +33,11 @@ const perspectivesData = [
 ];
 const perspIds = {};
 for (const p of perspectivesData) {
-  const [r] = await conn.query(
-    "INSERT INTO perspectives (companyId, name, description, color, sortOrder) VALUES (?, ?, ?, ?, ?)",
+  const { rows } = await conn.query(
+    'INSERT INTO perspectives ("companyId", name, description, color, "sortOrder") VALUES ($1, $2, $3, $4, $5) RETURNING id',
     [companyId, p.name, p.description, p.color, p.sortOrder],
   );
-  perspIds[p.name] = r.insertId;
+  perspIds[p.name] = rows[0].id;
 }
 console.log("Perspectivas:", perspIds);
 
@@ -63,12 +64,11 @@ const areasData = [
 ];
 const areaIds = {};
 for (let i = 0; i < areasData.length; i++) {
-  const [r] = await conn.query("INSERT INTO areas (companyId, name, sortOrder) VALUES (?, ?, ?)", [
-    companyId,
-    areasData[i],
-    i + 1,
-  ]);
-  areaIds[areasData[i]] = r.insertId;
+  const { rows } = await conn.query(
+    'INSERT INTO areas ("companyId", name, "sortOrder") VALUES ($1, $2, $3) RETURNING id',
+    [companyId, areasData[i], i + 1],
+  );
+  areaIds[areasData[i]] = rows[0].id;
 }
 console.log("Áreas:", Object.keys(areaIds).length);
 
@@ -111,11 +111,11 @@ const indicatorsData = [
 const indIds = {};
 for (let i = 0; i < indicatorsData.length; i++) {
   const [persp, name, desc, unit, scale] = indicatorsData[i];
-  const [r] = await conn.query(
-    "INSERT INTO indicators (companyId, perspectiveId, name, description, unit, scaleType, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  const { rows } = await conn.query(
+    'INSERT INTO indicators ("companyId", "perspectiveId", name, description, unit, "scaleType", "sortOrder") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
     [companyId, perspIds[persp], name, desc, unit, scale, i + 1],
   );
-  indIds[name] = r.insertId;
+  indIds[name] = rows[0].id;
 }
 console.log("Indicadores:", Object.keys(indIds).length);
 
@@ -145,7 +145,7 @@ const perspOrder = ["Financeira", "Mercado e Clientes", "Processos", "Cresciment
 for (const [areaName, ws] of Object.entries(weightsData)) {
   for (let i = 0; i < 4; i++) {
     await conn.query(
-      "INSERT INTO area_perspective_weights (areaId, perspectiveId, weight) VALUES (?, ?, ?)",
+      'INSERT INTO area_perspective_weights ("areaId", "perspectiveId", weight) VALUES ($1, $2, $3)',
       [areaIds[areaName], perspIds[perspOrder[i]], ws[i]],
     );
   }
@@ -190,7 +190,7 @@ for (const [indName, areasApp] of Object.entries(applicabilityData)) {
   for (const areaName of list) {
     if (!areaIds[areaName]) continue;
     await conn.query(
-      "INSERT INTO indicator_area_applicability (indicatorId, areaId, applicable) VALUES (?, ?, TRUE)",
+      'INSERT INTO indicator_area_applicability ("indicatorId", "areaId", applicable) VALUES ($1, $2, TRUE)',
       [indIds[indName], areaIds[areaName]],
     );
     applCount++;
@@ -209,7 +209,7 @@ const entriesData = [
 ];
 for (const [name, goal, result] of entriesData) {
   await conn.query(
-    "INSERT INTO indicator_entries (indicatorId, year, month, goal, result, source) VALUES (?, ?, ?, ?, ?, 'manual')",
+    'INSERT INTO indicator_entries ("indicatorId", year, month, goal, result, source) VALUES ($1, $2, $3, $4, $5, \'manual\')',
     [indIds[name], YEAR, MONTH, goal, result],
   );
 }

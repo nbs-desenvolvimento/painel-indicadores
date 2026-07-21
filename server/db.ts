@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/node-postgres";
 import {
   areaPerspectiveWeights,
   areas,
@@ -82,7 +82,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.openId,
       set: updateSet,
     });
   } catch (error) {
@@ -127,13 +128,13 @@ export async function listCompanies() {
 
 export async function createCompany(data: { name: string; cnpj?: string | null }) {
   const db = requireDb(await getDb());
-  const [res] = await db.insert(companies).values(data);
-  return res.insertId;
+  const [res] = await db.insert(companies).values(data).returning({ id: companies.id });
+  return res.id;
 }
 
 export async function updateCompany(id: number, data: Partial<{ name: string; cnpj: string | null; active: boolean }>) {
   const db = requireDb(await getDb());
-  await db.update(companies).set(data).where(eq(companies.id, id));
+  await db.update(companies).set({ ...data, updatedAt: new Date() }).where(eq(companies.id, id));
 }
 
 export async function deleteCompany(id: number) {
@@ -184,8 +185,8 @@ export async function createArea(data: { companyId: number; name: string; descri
     if (!parent) throw new Error("Área-pai não encontrada");
     if (parent.companyId !== data.companyId) throw new Error("A área-pai deve pertencer à mesma empresa");
   }
-  const [res] = await db.insert(areas).values(data);
-  return res.insertId;
+  const [res] = await db.insert(areas).values(data).returning({ id: areas.id });
+  return res.id;
 }
 
 export async function updateArea(id: number, data: Partial<{ name: string; description: string | null; parentAreaId: number | null; sortOrder: number; active: boolean }>) {
@@ -193,7 +194,7 @@ export async function updateArea(id: number, data: Partial<{ name: string; descr
   if (data.parentAreaId !== undefined && data.parentAreaId !== null) {
     await assertValidParentArea(id, data.parentAreaId);
   }
-  await db.update(areas).set(data).where(eq(areas.id, id));
+  await db.update(areas).set({ ...data, updatedAt: new Date() }).where(eq(areas.id, id));
 }
 
 /**
@@ -250,8 +251,8 @@ export async function createPerspective(data: {
   sortOrder?: number;
 }) {
   const db = requireDb(await getDb());
-  const [res] = await db.insert(perspectives).values(data);
-  return res.insertId;
+  const [res] = await db.insert(perspectives).values(data).returning({ id: perspectives.id });
+  return res.id;
 }
 
 export async function updatePerspective(
@@ -259,7 +260,7 @@ export async function updatePerspective(
   data: Partial<{ name: string; description: string | null; color: string; sortOrder: number; active: boolean }>,
 ) {
   const db = requireDb(await getDb());
-  await db.update(perspectives).set(data).where(eq(perspectives.id, id));
+  await db.update(perspectives).set({ ...data, updatedAt: new Date() }).where(eq(perspectives.id, id));
 }
 
 export async function deletePerspective(id: number) {
@@ -305,8 +306,8 @@ export async function createIndicator(data: {
   sortOrder?: number;
 }) {
   const db = requireDb(await getDb());
-  const [res] = await db.insert(indicators).values(data);
-  return res.insertId;
+  const [res] = await db.insert(indicators).values(data).returning({ id: indicators.id });
+  return res.id;
 }
 
 export async function updateIndicator(
@@ -325,7 +326,7 @@ export async function updateIndicator(
   }>,
 ) {
   const db = requireDb(await getDb());
-  await db.update(indicators).set(data).where(eq(indicators.id, id));
+  await db.update(indicators).set({ ...data, updatedAt: new Date() }).where(eq(indicators.id, id));
 }
 
 export async function deleteIndicator(id: number) {
@@ -356,8 +357,8 @@ export async function createObjective(data: {
   sortOrder?: number;
 }) {
   const db = requireDb(await getDb());
-  const [res] = await db.insert(objectives).values(data);
-  return res.insertId;
+  const [res] = await db.insert(objectives).values(data).returning({ id: objectives.id });
+  return res.id;
 }
 
 export async function updateObjective(
@@ -371,7 +372,7 @@ export async function updateObjective(
   }>,
 ) {
   const db = requireDb(await getDb());
-  await db.update(objectives).set(data).where(eq(objectives.id, id));
+  await db.update(objectives).set({ ...data, updatedAt: new Date() }).where(eq(objectives.id, id));
 }
 
 export async function deleteObjective(id: number) {
@@ -422,8 +423,8 @@ export async function createCalibrationRule(data: {
 }) {
   const db = requireDb(await getDb());
   const { ranges, ...rule } = data;
-  const [res] = await db.insert(calibrationRules).values(rule);
-  const ruleId = res.insertId;
+  const [res] = await db.insert(calibrationRules).values(rule).returning({ id: calibrationRules.id });
+  const ruleId = res.id;
   if (!rule.directConversion && ranges.length > 0) {
     await db.insert(calibrationRuleRanges).values(ranges.map((r) => ({ ...r, ruleId })));
   }
@@ -444,7 +445,7 @@ export async function updateCalibrationRule(
   const db = requireDb(await getDb());
   const { ranges, ...rule } = data;
   if (Object.keys(rule).length > 0) {
-    await db.update(calibrationRules).set(rule).where(eq(calibrationRules.id, id));
+    await db.update(calibrationRules).set({ ...rule, updatedAt: new Date() }).where(eq(calibrationRules.id, id));
   }
   if (ranges !== undefined) {
     // Recria as faixas por completo
@@ -475,7 +476,10 @@ export async function setWeight(areaId: number, perspectiveId: number, weight: n
   await db
     .insert(areaPerspectiveWeights)
     .values({ areaId, perspectiveId, weight })
-    .onDuplicateKeyUpdate({ set: { weight } });
+    .onConflictDoUpdate({
+      target: [areaPerspectiveWeights.areaId, areaPerspectiveWeights.perspectiveId],
+      set: { weight, updatedAt: new Date() },
+    });
 }
 
 /* --------------------------- Applicability --------------------------- */
@@ -493,7 +497,10 @@ export async function setApplicability(indicatorId: number, areaId: number, appl
   await db
     .insert(indicatorAreaApplicability)
     .values({ indicatorId, areaId, applicable })
-    .onDuplicateKeyUpdate({ set: { applicable } });
+    .onConflictDoUpdate({
+      target: [indicatorAreaApplicability.indicatorId, indicatorAreaApplicability.areaId],
+      set: { applicable, updatedAt: new Date() },
+    });
 }
 
 /**
@@ -505,14 +512,17 @@ export async function setApplicabilityForIndicator(indicatorId: number, areaIds:
   // Desmarca todas as vinculações existentes deste indicador
   await db
     .update(indicatorAreaApplicability)
-    .set({ applicable: false })
+    .set({ applicable: false, updatedAt: new Date() })
     .where(eq(indicatorAreaApplicability.indicatorId, indicatorId));
   // Marca as áreas selecionadas (upsert)
   if (areaIds.length > 0) {
     await db
       .insert(indicatorAreaApplicability)
       .values(areaIds.map((areaId) => ({ indicatorId, areaId, applicable: true })))
-      .onDuplicateKeyUpdate({ set: { applicable: true } });
+      .onConflictDoUpdate({
+        target: [indicatorAreaApplicability.indicatorId, indicatorAreaApplicability.areaId],
+        set: { applicable: true, updatedAt: new Date() },
+      });
   }
 }
 
@@ -539,7 +549,7 @@ export async function upsertEntry(data: {
   updatedBy?: number;
 }) {
   const db = requireDb(await getDb());
-  const updateSet: Record<string, unknown> = {};
+  const updateSet: Record<string, unknown> = { updatedAt: new Date() };
   if (data.goal !== undefined) updateSet.goal = data.goal;
   if (data.result !== undefined) updateSet.result = data.result;
   if (data.source !== undefined) updateSet.source = data.source;
@@ -555,7 +565,10 @@ export async function upsertEntry(data: {
       source: data.source ?? "manual",
       updatedBy: data.updatedBy,
     })
-    .onDuplicateKeyUpdate({ set: updateSet });
+    .onConflictDoUpdate({
+      target: [indicatorEntries.indicatorId, indicatorEntries.year, indicatorEntries.month],
+      set: updateSet,
+    });
 }
 
 export async function deleteEntry(indicatorId: number, year: number, month: number) {
@@ -583,8 +596,8 @@ export async function createImportLog(data: {
   importedBy?: number;
 }) {
   const db = requireDb(await getDb());
-  const [res] = await db.insert(importLogs).values(data);
-  return res.insertId;
+  const [res] = await db.insert(importLogs).values(data).returning({ id: importLogs.id });
+  return res.id;
 }
 
 export async function listImportLogs(companyId: number) {
