@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1784228090739,
+      "tag": "0000_wooden_mordo",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1784228257324,
+      "tag": "0001_rare_meltdown",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1784387815860,
+      "tag": "0002_square_sentry",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1784390843190,
+      "tag": "0003_mute_roughhouse",
+      "breakpoints": true
+    }
+  ]
+}
