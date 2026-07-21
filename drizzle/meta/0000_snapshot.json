@@ -1,5 +1,5 @@
 {
-  "id": "4930436b-2ad3-454c-8e1e-852d1a46399c",
+  "id": "a125f9ed-d96c-4471-84a1-2ba6332fef45",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -836,9 +836,9 @@
           "primaryKey": true,
           "notNull": true
         },
-        "openId": {
-          "name": "openId",
-          "type": "varchar(64)",
+        "email": {
+          "name": "email",
+          "type": "varchar(320)",
           "primaryKey": false,
           "notNull": true
         },
@@ -848,17 +848,11 @@
           "primaryKey": false,
           "notNull": false
         },
-        "email": {
-          "name": "email",
-          "type": "varchar(320)",
+        "passwordHash": {
+          "name": "passwordHash",
+          "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false
-        },
-        "loginMethod": {
-          "name": "loginMethod",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "role": {
           "name": "role",
@@ -894,11 +888,11 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "users_openId_unique": {
-          "name": "users_openId_unique",
+        "users_email_unique": {
+          "name": "users_email_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "openId"
+            "email"
           ]
         }
       },

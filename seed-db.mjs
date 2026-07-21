@@ -2,17 +2,30 @@
  * Seed inicial com os dados da planilha GESTÃO DE INDICADORES:
  * 1 empresa, 4 perspectivas, 18 áreas, 26 indicadores, pesos e aplicabilidade,
  * além das metas/resultados de exemplo (jul/2026).
+ * Também garante o usuário administrador inicial (senha fixa, ver console).
  */
 import "dotenv/config";
+import bcrypt from "bcryptjs";
 import { Client } from "pg";
 
 const conn = new Client({ connectionString: process.env.DATABASE_URL });
 await conn.connect();
 
-// Evita duplicar seed
+// Usuário admin inicial — senha fixa documentada aqui e no console; idempotente
+// (ON CONFLICT DO NOTHING), então é seguro rodar este script mais de uma vez.
+const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "admin@painel.local";
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || "TrocarSenha123!";
+const adminPasswordHash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
+await conn.query(
+  'INSERT INTO users (email, name, "passwordHash", role) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING',
+  [ADMIN_EMAIL, "Administrador", adminPasswordHash, "admin"],
+);
+console.log(`Usuário admin: ${ADMIN_EMAIL} / senha inicial: ${ADMIN_PASSWORD} (troque após o primeiro login)`);
+
+// Evita duplicar o seed de dados de exemplo
 const { rows: existingRows } = await conn.query("SELECT COUNT(*) AS c FROM companies");
 if (Number(existingRows[0].c) > 0) {
-  console.log("Seed já executado, abortando.");
+  console.log("Seed de dados já executado, abortando o restante.");
   await conn.end();
   process.exit(0);
 }

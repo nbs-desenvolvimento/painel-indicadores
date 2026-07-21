@@ -1,5 +1,7 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +24,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   BarChart3,
@@ -155,9 +156,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Faça login para acessar os dashboards, lançamentos e cadastros do sistema de gestão de desempenho.
               </p>
             </div>
-            <Button onClick={() => startLogin()} size="lg" className="w-full shadow-lg hover:shadow-xl transition-all">
-              Entrar
-            </Button>
+            <LoginForm />
           </div>
         </div>
       </div>
@@ -174,6 +173,58 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     >
       <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>{children}</DashboardLayoutContent>
     </SidebarProvider>
+  );
+}
+
+function LoginForm() {
+  const { login, isLoggingIn, loginError } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await login(email, password);
+    } catch {
+      // loginError (via useAuth) já reflete a falha na UI abaixo.
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          autoComplete="username"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoFocus
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="password">Senha</Label>
+        <Input
+          id="password"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+      </div>
+      {loginError && <p className="text-sm text-destructive">{loginError}</p>}
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full shadow-lg hover:shadow-xl transition-all"
+        disabled={isLoggingIn}
+      >
+        {isLoggingIn ? "Entrando..." : "Entrar"}
+      </Button>
+    </form>
   );
 }
 

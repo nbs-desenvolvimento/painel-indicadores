@@ -1,8 +1,8 @@
-import { COOKIE_NAME } from "@shared/const";
 import { TRPCError } from "@trpc/server";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { SCALE_TYPES } from "../shared/calcEngine";
-import { getSessionCookieOptions } from "./_core/cookies";
+import { signAuthToken } from "./_core/auth";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { buildCompanySnapshot, buildHistory } from "./dashboardService";
@@ -15,6 +15,12 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   }
   return next({ ctx });
 });
+
+const BCRYPT_ROUNDS = 10;
+// Comparado quando o email não existe, para que o tempo de resposta não denuncie
+// se a falha foi por email ou por senha (bcrypt.compare sempre roda de qualquer jeito).
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync("no-such-user", BCRYPT_ROUNDS);
+const INVALID_CREDENTIALS_MSG = "Email ou senha inválidos";
 
 const scaleTypeSchema = z.enum(SCALE_TYPES);
 const rangeSchema = z.object({
@@ -30,16 +36,58 @@ const periodSchema = z.object({ year: z.number().int().min(2000).max(2100), mont
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return { success: true } as const;
-    }),
+    me: publicProcedure.query(({ ctx }) => (ctx.user ? db.toPublicUser(ctx.user) : null)),
+    login: publicProcedure
+      .input(z.object({ email: z.string().email(), password: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        const user = await db.getUserByEmail(input.email);
+        const passwordMatches = await bcrypt.compare(
+          input.password,
+          user?.passwordHash ?? DUMMY_PASSWORD_HASH,
+        );
+
+        if (!user || !passwordMatches) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: INVALID_CREDENTIALS_MSG });
+        }
+
+        await db.updateLastSignedIn(user.id);
+        const token = await signAuthToken(user.id);
+        return { token, user: db.toPublicUser(user) };
+      }),
   }),
 
   users: router({
     list: adminProcedure.query(() => db.listUsers()),
+    create: adminProcedure
+      .input(
+        z.object({
+          email: z.string().email(),
+          name: z.string().optional(),
+          password: z.string().min(8, "A senha deve ter ao menos 8 caracteres"),
+          role: z.enum(["user", "admin"]).default("user"),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        const existing = await db.getUserByEmail(input.email);
+        if (existing) {
+          throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este email" });
+        }
+        const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+        const id = await db.createUser({
+          email: input.email,
+          name: input.name ?? null,
+          passwordHash,
+          role: input.role,
+        });
+        return { id };
+      }),
+    resetPassword: adminProcedure
+      .input(z.object({ userId: z.number(), newPassword: z.string().min(8, "A senha deve ter ao menos 8 caracteres") }))
+      .mutation(async ({ input }) => {
+        const passwordHash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+        await db.updateUserPassword(input.userId, passwordHash);
+        return { success: true } as const;
+      }),
     setRole: adminProcedure
       .input(z.object({ userId: z.number(), role: z.enum(["user", "admin"]) }))
       .mutation(async ({ input, ctx }) => {
