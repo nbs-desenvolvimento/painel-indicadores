@@ -25,7 +25,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import type { CalibrationRule, Indicator } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
 import { ArrowRight, Pencil, Plus, Scale, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -80,14 +81,85 @@ function rangeLabel(r: { minAttainment: number | null; minInclusive: boolean; ma
   return parts.join(" e ");
 }
 
+interface RangeInput {
+  minAttainment: number | null;
+  minInclusive: boolean;
+  maxAttainment: number | null;
+  maxInclusive: boolean;
+  score: number;
+  sortOrder: number;
+}
+
+interface MutationResult<TInput> {
+  mutate: (input: TInput) => void;
+  isPending: boolean;
+}
+
+interface CalibrationRulesApi {
+  useUtils: () => {
+    calibrationRules: { invalidate: () => void };
+    dashboard: { invalidate: () => void };
+    entries: { invalidate: () => void };
+    indicators: { invalidate: () => void };
+  };
+  calibrationRules: {
+    list: {
+      useQuery: (
+        input: { companyId: number | undefined },
+        opts: { enabled: boolean },
+      ) => { data: CalibrationRule[] | undefined; isLoading: boolean };
+    };
+    create: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{
+        companyId: number;
+        name: string;
+        description?: string;
+        directConversion: boolean;
+        sortOrder: number;
+        ranges: RangeInput[];
+      }>;
+    };
+    update: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{
+        id: number;
+        name?: string;
+        description?: string | null;
+        directConversion?: boolean;
+        ranges?: RangeInput[];
+      }>;
+    };
+    delete: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ id: number }>;
+    };
+  };
+  indicators: {
+    list: {
+      useQuery: (
+        input: { companyId: number | undefined },
+        opts: { enabled: boolean },
+      ) => { data: Indicator[] | undefined };
+    };
+  };
+}
+
 export default function CadastroRegras() {
   const { companyId } = useApp();
-  const utils = trpc.useUtils();
-  const { data: rules, isLoading } = trpc.calibrationRules.list.useQuery(
+  const api = trpcApi as CalibrationRulesApi;
+  const utils = api.useUtils();
+  const { data: rules, isLoading } = api.calibrationRules.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
-  const { data: indicators } = trpc.indicators.list.useQuery(
+  const { data: indicators } = api.indicators.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
@@ -108,7 +180,7 @@ export default function CadastroRegras() {
     utils.entries.invalidate();
   };
 
-  const createMut = trpc.calibrationRules.create.useMutation({
+  const createMut = api.calibrationRules.create.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Regra criada");
@@ -116,7 +188,7 @@ export default function CadastroRegras() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const updateMut = trpc.calibrationRules.update.useMutation({
+  const updateMut = api.calibrationRules.update.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Regra atualizada");
@@ -124,7 +196,7 @@ export default function CadastroRegras() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const deleteMut = trpc.calibrationRules.delete.useMutation({
+  const deleteMut = api.calibrationRules.delete.useMutation({
     onSuccess: () => {
       invalidate();
       utils.indicators.invalidate();

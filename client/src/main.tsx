@@ -1,5 +1,6 @@
-import { trpc } from "@/lib/trpc";
-import { UNAUTHED_ERR_MSG } from '@shared/const';
+import type { PublicUser } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
+import { UNAUTHED_ERR_MSG } from '@/lib/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCQueryUtils } from "@trpc/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
@@ -7,14 +8,15 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { AUTH_TOKEN_KEY } from "./hooks/useAuth";
+import { API_URL } from "@/lib/env";
 import "./index.css";
 
 const queryClient = new QueryClient();
 
-const trpcClient = trpc.createClient({
+const trpcClient = trpcApi.createClient({
   links: [
     httpBatchLink({
-      url: "/api/trpc",
+      url: `${API_URL}/api/trpc`,
       transformer: superjson,
       headers() {
         const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -24,7 +26,9 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-const trpcUtils = createTRPCQueryUtils({ queryClient, client: trpcClient });
+const trpcUtils = createTRPCQueryUtils({ queryClient, client: trpcClient }) as unknown as {
+  auth: { me: { setData: (input: undefined, data: PublicUser | null) => void } };
+};
 
 // Sessão expirada/token inválido: descarta o token guardado para que a UI
 // volte a mostrar a tela de login (não há redirect a fazer, é tudo local).
@@ -52,9 +56,9 @@ queryClient.getMutationCache().subscribe(event => {
 });
 
 createRoot(document.getElementById("root")!).render(
-  <trpc.Provider client={trpcClient} queryClient={queryClient}>
+  <trpcApi.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
       <App />
     </QueryClientProvider>
-  </trpc.Provider>
+  </trpcApi.Provider>
 );

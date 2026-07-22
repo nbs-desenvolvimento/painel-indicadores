@@ -30,15 +30,58 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import type { Area } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+interface MutationResult<TInput> {
+  mutate: (input: TInput) => void;
+  isPending: boolean;
+}
+
+interface AreasApi {
+  useUtils: () => { areas: { invalidate: () => void }; dashboard: { invalidate: () => void } };
+  areas: {
+    list: {
+      useQuery: (
+        input: { companyId: number | undefined },
+        opts: { enabled: boolean },
+      ) => { data: Area[] | undefined; isLoading: boolean };
+    };
+    create: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ companyId: number; name: string; parentAreaId: number | null; sortOrder: number }>;
+    };
+    update: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{
+        id: number;
+        name?: string;
+        parentAreaId?: number | null;
+        sortOrder?: number;
+        active?: boolean;
+      }>;
+    };
+    delete: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ id: number }>;
+    };
+  };
+}
+
 export default function CadastroAreas() {
   const { companyId } = useApp();
-  const utils = trpc.useUtils();
-  const { data: areas, isLoading } = trpc.areas.list.useQuery(
+  const api = trpcApi as AreasApi;
+  const utils = api.useUtils();
+  const { data: areas, isLoading } = api.areas.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
@@ -63,7 +106,7 @@ export default function CadastroAreas() {
     utils.dashboard.invalidate();
   };
 
-  const createMut = trpc.areas.create.useMutation({
+  const createMut = api.areas.create.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Área criada");
@@ -71,7 +114,7 @@ export default function CadastroAreas() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const updateMut = trpc.areas.update.useMutation({
+  const updateMut = api.areas.update.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Área atualizada");
@@ -79,7 +122,7 @@ export default function CadastroAreas() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const deleteMut = trpc.areas.delete.useMutation({
+  const deleteMut = api.areas.delete.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Área excluída");

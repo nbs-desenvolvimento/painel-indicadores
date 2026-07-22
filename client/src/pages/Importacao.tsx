@@ -2,31 +2,59 @@ import { PageSkeleton, PageToolbar } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useApp, MONTH_NAMES } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import type { ImportLog, ImportResult } from "@/lib/apiTypes";
+import { downloadAuthedFile } from "@/lib/downloadFile";
+import { trpcApi } from "@/lib/trpcApi";
 import { CheckCircle2, Download, FileUp, Loader2, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-type ImportOutcome = {
-  totalRows: number;
-  matched: { indicatorName: string; indicatorId: number; goal: number | null; result: number | null }[];
-  unmatched: string[];
-};
+interface ImporterApi {
+  useUtils: () => {
+    entries: { list: { invalidate: () => void } };
+    dashboard: { invalidate: () => void };
+    importer: { logs: { invalidate: () => void } };
+  };
+  importer: {
+    logs: {
+      useQuery: (
+        input: { companyId: number },
+        opts: { enabled: boolean },
+      ) => { data: ImportLog[] | undefined };
+    };
+    importExcel: {
+      useMutation: (opts: {
+        onSuccess: (res: ImportResult) => void;
+        onError: (e: { message: string }) => void;
+      }) => {
+        mutate: (input: {
+          companyId: number;
+          year: number;
+          month: number;
+          fileName: string;
+          fileBase64: string;
+        }) => void;
+        isPending: boolean;
+      };
+    };
+  };
+}
 
 export default function Importacao() {
   const { companyId, year, month, periodLabel } = useApp();
-  const utils = trpc.useUtils();
+  const api = trpcApi as ImporterApi;
+  const utils = api.useUtils();
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
+  const [outcome, setOutcome] = useState<ImportResult | null>(null);
   const [fileName, setFileName] = useState<string>("");
 
-  const { data: logs } = trpc.importer.logs.useQuery(
+  const { data: logs } = api.importer.logs.useQuery(
     { companyId: companyId ?? 0 },
     { enabled: !!companyId },
   );
 
-  const importMutation = trpc.importer.importExcel.useMutation({
+  const importMutation = api.importer.importExcel.useMutation({
     onSuccess: (res) => {
       setOutcome(res);
       utils.entries.list.invalidate();
@@ -120,7 +148,12 @@ export default function Importacao() {
               variant="outline"
               size="sm"
               className="mt-4 bg-card"
-              onClick={() => window.open(`/api/export/template?companyId=${companyId}`, "_blank")}
+              onClick={() =>
+                downloadAuthedFile(
+                  `/api/export/template?companyId=${companyId}`,
+                  "modelo-importacao-indicadores.xlsx",
+                ).catch((e) => toast.error(e.message))
+              }
             >
               <Download className="h-4 w-4 mr-1.5" />
               Baixar modelo de importação
@@ -218,7 +251,7 @@ export default function Importacao() {
               <tbody>
                 {[...logs].reverse().map((l) => (
                   <tr key={l.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                    <td className="py-2 pr-2">{new Date(l.createdAt).toLocaleString("pt-BR")}</td>
+                    <td className="py-2 pr-2">{l.createdAt.toLocaleString("pt-BR")}</td>
                     <td className="py-2 px-2">{l.fileName || "—"}</td>
                     <td className="py-2 px-2 text-center">
                       {MONTH_NAMES[l.month - 1]}/{l.year}

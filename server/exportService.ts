@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { SCALE_TYPE_LABELS, type ScaleType } from "../shared/calcEngine";
+import { SCALE_TYPE_LABELS, type ScaleType } from "./calcEngine";
 import { buildCompanySnapshot } from "./dashboardService";
 
 const MONTH_NAMES = [

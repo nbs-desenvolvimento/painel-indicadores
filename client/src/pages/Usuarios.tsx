@@ -19,17 +19,49 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
+import type { PublicUser, Role } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
 import { KeyRound, Plus, ShieldCheck, User } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+
+interface MutationResult<TInput> {
+  mutate: (input: TInput) => void;
+  isPending: boolean;
+}
+
+interface UsersApi {
+  useUtils: () => { users: { list: { invalidate: () => void } } };
+  users: {
+    list: { useQuery: () => { data: PublicUser[] | undefined; isLoading: boolean } };
+    setRole: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ userId: number; role: Role }>;
+    };
+    create: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ email: string; name?: string; password: string; role: Role }>;
+    };
+    resetPassword: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ userId: number; newPassword: string }>;
+    };
+  };
+}
 
 const emptyNewUser = { email: "", name: "", password: "", role: "user" as "user" | "admin" };
 
 export default function Usuarios() {
   const { user: me } = useAuth();
-  const utils = trpc.useUtils();
-  const { data: users, isLoading } = trpc.users.list.useQuery();
+  const api = trpcApi as UsersApi;
+  const utils = api.useUtils();
+  const { data: users, isLoading } = api.users.list.useQuery();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newUser, setNewUser] = useState(emptyNewUser);
@@ -37,7 +69,7 @@ export default function Usuarios() {
   const [resetTarget, setResetTarget] = useState<{ id: number; name: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
-  const setRoleMut = trpc.users.setRole.useMutation({
+  const setRoleMut = api.users.setRole.useMutation({
     onSuccess: () => {
       utils.users.list.invalidate();
       toast.success("Perfil atualizado");
@@ -45,7 +77,7 @@ export default function Usuarios() {
     onError: (e) => toast.error(e.message),
   });
 
-  const createMut = trpc.users.create.useMutation({
+  const createMut = api.users.create.useMutation({
     onSuccess: () => {
       utils.users.list.invalidate();
       toast.success("Usuário criado");
@@ -55,7 +87,7 @@ export default function Usuarios() {
     onError: (e) => toast.error(e.message),
   });
 
-  const resetPasswordMut = trpc.users.resetPassword.useMutation({
+  const resetPasswordMut = api.users.resetPassword.useMutation({
     onSuccess: () => {
       toast.success("Senha redefinida");
       setResetTarget(null);
@@ -192,7 +224,7 @@ export default function Usuarios() {
                   </td>
                   <td className="py-2.5 px-2 text-muted-foreground">{u.email || "—"}</td>
                   <td className="py-2.5 px-2 text-muted-foreground">
-                    {u.lastSignedIn ? new Date(u.lastSignedIn).toLocaleString("pt-BR") : "—"}
+                    {u.lastSignedIn ? u.lastSignedIn.toLocaleString("pt-BR") : "—"}
                   </td>
                   <td className="py-2.5 px-2 text-center">
                     <Select

@@ -4,7 +4,7 @@ import { generateExcelReport, generateImportTemplate } from "./exportService";
 
 /**
  * Rotas de download (Excel). Registradas em server/_core/index.ts.
- * Autenticação via cookie de sessão (mesmo contexto do tRPC).
+ * Autenticação via Authorization: Bearer (mesmo contexto do tRPC).
  */
 export function registerExportRoutes(app: Express) {
   app.get("/api/export/excel", async (req: Request, res: Response) => {

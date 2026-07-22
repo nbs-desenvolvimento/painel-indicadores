@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeAreaScore, computeScore } from "../shared/calcEngine";
+import { computeAreaScore, computeScore } from "./calcEngine";
 
 /**
  * Valores de validação extraídos diretamente da planilha GESTÃO DE INDICADORES:

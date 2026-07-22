@@ -8,8 +8,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MONTH_NAMES_SHORT, fmtValue, useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
-import { SCALE_TYPE_LABELS } from "@shared/calcEngine";
+import { useDashboardHistory, useDashboardSnapshot } from "@/lib/apiHooks";
+import { SCALE_TYPE_LABELS } from "@/lib/calcEngine";
 import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -41,13 +41,13 @@ export default function DashboardIndicadores() {
   const { companyId, year, month, periodLabel } = useApp();
   const [indicatorId, setIndicatorId] = useState<number | null>(null);
 
-  const { data: snap, isLoading } = trpc.dashboard.snapshot.useQuery(
+  const { data: snap, isLoading } = useDashboardSnapshot(
     { companyId: companyId ?? 0, year, month },
     { enabled: !!companyId },
   );
 
   const periods = useMemo(() => buildLast12Periods(year, month), [year, month]);
-  const { data: history } = trpc.dashboard.history.useQuery(
+  const { data: history } = useDashboardHistory(
     { companyId: companyId ?? 0, periods },
     { enabled: !!companyId },
   );

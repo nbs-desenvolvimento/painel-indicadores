@@ -1,18 +1,56 @@
+import type { PublicUser } from "@/lib/apiTypes";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback } from "react";
 
 export const AUTH_TOKEN_KEY = "auth_token";
 
-export function useAuth() {
-  const utils = trpc.useUtils();
+interface LoginResult {
+  token: string;
+  user: PublicUser;
+}
 
-  const meQuery = trpc.auth.me.useQuery(undefined, {
+interface AuthApi {
+  useUtils: () => {
+    auth: {
+      me: {
+        setData: (input: undefined, data: PublicUser | null) => void;
+        invalidate: () => Promise<void>;
+      };
+    };
+  };
+  auth: {
+    me: {
+      useQuery: (
+        input: undefined,
+        opts: { retry: boolean; refetchOnWindowFocus: boolean },
+      ) => {
+        data: PublicUser | null | undefined;
+        isLoading: boolean;
+        error: unknown;
+        refetch: () => void;
+      };
+    };
+    login: {
+      useMutation: (opts: { onSuccess: (data: LoginResult) => void }) => {
+        mutateAsync: (input: { email: string; password: string }) => Promise<LoginResult>;
+        isPending: boolean;
+        error: unknown;
+      };
+    };
+  };
+}
+
+export function useAuth() {
+  const api = trpc as unknown as AuthApi;
+  const utils = api.useUtils();
+
+  const meQuery = api.auth.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
   });
 
-  const loginMutation = trpc.auth.login.useMutation({
+  const loginMutation = api.auth.login.useMutation({
     onSuccess: (data) => {
       localStorage.setItem(AUTH_TOKEN_KEY, data.token);
       utils.auth.me.setData(undefined, data.user);

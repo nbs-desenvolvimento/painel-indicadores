@@ -1,0 +1,233 @@
+/**
+ * Motor de cálculo — réplica exata da lógica da planilha GESTÃO DE INDICADORES.
+ *
+ * 1. Score do indicador: função degrau aplicada a META (M) e RESULTADO (R),
+ *    conforme o tipo de escala configurado no indicador (5 tipos fixos).
+ * 2. Desempenho da perspectiva por área: MÉDIA aritmética dos scores dos
+ *    indicadores aplicáveis àquela área naquela perspectiva × PESO da
+ *    perspectiva para a área.
+ * 3. Desempenho total da área: SOMA dos valores ponderados das perspectivas.
+ */
+
+export const SCALE_TYPES = [
+  "higher_better_120",
+  "higher_better_100",
+  "lower_better_100",
+  "lower_better_120",
+  "target_range",
+] as const;
+
+export type ScaleType = (typeof SCALE_TYPES)[number];
+
+export const SCALE_TYPE_LABELS: Record<ScaleType, string> = {
+  higher_better_120: "Maior-melhor 120%",
+  higher_better_100: "Maior-melhor 100%",
+  lower_better_100: "Menor-melhor 100%",
+  lower_better_120: "Menor-melhor 120%",
+  target_range: "Faixa-alvo",
+};
+
+export const SCALE_TYPE_DESCRIPTIONS: Record<ScaleType, string> = {
+  higher_better_120:
+    "R ≥ 105% da meta → 120% · R ≥ 95% → 100% · R ≥ 85% → 60% · abaixo → 0%",
+  higher_better_100:
+    "R ≥ meta → 100% · R ≥ 95% → 80% · R ≥ 85% → 60% · abaixo → 0%",
+  lower_better_100:
+    "R ≤ meta → 100% · R ≤ 102% → 80% · R ≤ 105% → 60% · acima → 0%",
+  lower_better_120:
+    "R > 110% da meta → 0% · R > 105% → 60% · R > 95% → 100% · R ≤ 95% → 120%",
+  target_range:
+    "R ≥ 110% → 0% · R ≥ 105% → 60% · R ≥ 95% → 100% · R ≥ 90% → 60% · abaixo → 0%",
+};
+
+/**
+ * Calcula o score (0, 0.6, 0.8, 1.0 ou 1.2) de um indicador.
+ * Réplica fiel das fórmulas IF da coluna H da planilha.
+ * Retorna null quando meta ou resultado não estão lançados.
+ */
+export function computeScore(
+  scaleType: ScaleType,
+  goal: number | null | undefined,
+  result: number | null | undefined,
+): number | null {
+  if (goal === null || goal === undefined || result === null || result === undefined) {
+    return null;
+  }
+  const M = goal;
+  const R = result;
+  // Tolerância para erros de ponto flutuante nas comparações de degraus,
+  // garantindo comportamento idêntico ao Excel (ex.: 1.1*100 = 110.00000000000001 em IEEE754)
+  const EPS = 1e-9;
+  const gte = (a: number, b: number) => a >= b - EPS * Math.max(1, Math.abs(b));
+  const lte = (a: number, b: number) => a <= b + EPS * Math.max(1, Math.abs(b));
+  const gt = (a: number, b: number) => a > b + EPS * Math.max(1, Math.abs(b));
+
+  switch (scaleType) {
+    case "higher_better_120":
+      // =IF(R>=1.05*M,120%,IF(R>=0.95*M,100%,IF(R>=0.85*M,60%,IF(R<0.85*M,0%))))
+      if (gte(R, 1.05 * M)) return 1.2;
+      if (gte(R, 0.95 * M)) return 1.0;
+      if (gte(R, 0.85 * M)) return 0.6;
+      return 0;
+
+    case "higher_better_100":
+      // =IF(R>=M,100%,IF(R>=0.95*M,80%,IF(R>=0.85*M,60%,IF(R<0.85*M,0%))))
+      if (gte(R, M)) return 1.0;
+      if (gte(R, 0.95 * M)) return 0.8;
+      if (gte(R, 0.85 * M)) return 0.6;
+      return 0;
+
+    case "lower_better_100":
+      // =IF(R<=M,100%,IF(R<=1.02*M,80%,IF(R<=1.05*M,60%,IF(R>1.05*M,0%))))
+      if (lte(R, M)) return 1.0;
+      if (lte(R, 1.02 * M)) return 0.8;
+      if (lte(R, 1.05 * M)) return 0.6;
+      return 0;
+
+    case "lower_better_120":
+      // =IF(R>1.1*M,0%,IF(R>1.05*M,60%,IF(R>0.95*M,100%,IF(R<=0.95*M,120%))))
+      if (gt(R, 1.1 * M)) return 0;
+      if (gt(R, 1.05 * M)) return 0.6;
+      if (gt(R, 0.95 * M)) return 1.0;
+      return 1.2;
+
+    case "target_range":
+      // =IF(R>=1.1*M,0%,IF(R>=1.05*M,60%,IF(R>=0.95*M,100%,IF(R>=0.9*M,60%,IF(R<0.9*M,0%)))))
+      if (gte(R, 1.1 * M)) return 0;
+      if (gte(R, 1.05 * M)) return 0.6;
+      if (gte(R, 0.95 * M)) return 1.0;
+      if (gte(R, 0.9 * M)) return 0.6;
+      return 0;
+  }
+}
+
+/* ------------------- Regras de calibragem configuráveis ------------------- */
+
+export interface CalibrationRange {
+  /** Limite inferior do atingimento em fração (ex.: 0.95). Null = sem limite inferior */
+  minAttainment: number | null;
+  minInclusive: boolean;
+  /** Limite superior do atingimento em fração (ex.: 1.05). Null = sem limite superior */
+  maxAttainment: number | null;
+  maxInclusive: boolean;
+  /** Score da faixa em fração (ex.: 1.2 = 120%) */
+  score: number;
+  sortOrder?: number;
+}
+
+export interface CalibrationRuleDef {
+  directConversion: boolean;
+  ranges: CalibrationRange[];
+}
+
+/**
+ * Calcula o score de um indicador usando uma regra de calibragem configurável.
+ * O atingimento é A = resultado / meta. As faixas são avaliadas na ordem
+ * (sortOrder) e a primeira que casar define o score. Com directConversion,
+ * o score é o próprio atingimento.
+ * Usa a mesma tolerância de ponto flutuante do computeScore (compatível com Excel).
+ * Retorna null quando meta ou resultado não estão lançados ou meta = 0.
+ */
+export function computeScoreWithRule(
+  rule: CalibrationRuleDef,
+  goal: number | null | undefined,
+  result: number | null | undefined,
+): number | null {
+  if (goal === null || goal === undefined || result === null || result === undefined) {
+    return null;
+  }
+  if (goal === 0) return null;
+  const attainment = result / goal;
+  if (rule.directConversion) return attainment;
+
+  const EPS = 1e-9;
+  const gte = (a: number, b: number) => a >= b - EPS * Math.max(1, Math.abs(b));
+  const lte = (a: number, b: number) => a <= b + EPS * Math.max(1, Math.abs(b));
+  const gt = (a: number, b: number) => a > b + EPS * Math.max(1, Math.abs(b));
+  const lt = (a: number, b: number) => a < b - EPS * Math.max(1, Math.abs(b));
+
+  const ordered = [...rule.ranges].sort((x, y) => (x.sortOrder ?? 0) - (y.sortOrder ?? 0));
+  for (const r of ordered) {
+    const minOk =
+      r.minAttainment === null ||
+      (r.minInclusive ? gte(attainment, r.minAttainment) : gt(attainment, r.minAttainment));
+    const maxOk =
+      r.maxAttainment === null ||
+      (r.maxInclusive ? lte(attainment, r.maxAttainment) : lt(attainment, r.maxAttainment));
+    if (minOk && maxOk) return r.score;
+  }
+  return 0;
+}
+
+export interface IndicatorInput {
+  id: number;
+  perspectiveId: number;
+  name: string;
+  scaleType: ScaleType;
+  /** Regra de calibragem do indicador; quando presente, tem precedência sobre scaleType */
+  calibrationRule?: CalibrationRuleDef | null;
+  goal: number | null;
+  result: number | null;
+}
+
+export interface PerspectiveScore {
+  perspectiveId: number;
+  /** Média aritmética dos scores dos indicadores aplicáveis (null se nenhum score) */
+  average: number | null;
+  /** Peso da perspectiva para a área (0..1) */
+  weight: number;
+  /** average × weight (0 se average null) */
+  weighted: number;
+  /** Scores individuais dos indicadores aplicáveis */
+  indicatorScores: { indicatorId: number; name: string; score: number | null }[];
+}
+
+export interface AreaScore {
+  areaId: number;
+  perspectives: PerspectiveScore[];
+  /** Soma dos valores ponderados das perspectivas */
+  total: number;
+}
+
+/**
+ * Calcula o desempenho de uma área.
+ * - indicators: todos os indicadores APLICÁVEIS à área com meta/resultado do período
+ * - weights: mapa perspectiveId → peso (0..1)
+ *
+ * Réplica da planilha:
+ *   K4 = AVERAGE(J3:J7) * K3   (média × peso, por perspectiva)
+ *   I34 = K28 + K18 + K9 + K4  (soma das perspectivas)
+ *
+ * Observação: na planilha, AVERAGE ignora células vazias; indicadores sem
+ * meta/resultado lançados (score null) são ignorados na média.
+ */
+export function computeAreaScore(
+  areaId: number,
+  indicators: IndicatorInput[],
+  weights: Map<number, number>,
+  perspectiveIds: number[],
+): AreaScore {
+  const perspectives: PerspectiveScore[] = perspectiveIds.map((pid) => {
+    const inds = indicators.filter((i) => i.perspectiveId === pid);
+    const indicatorScores = inds.map((i) => ({
+      indicatorId: i.id,
+      name: i.name,
+      score: i.calibrationRule
+        ? computeScoreWithRule(i.calibrationRule, i.goal, i.result)
+        : computeScore(i.scaleType, i.goal, i.result),
+    }));
+    const valid = indicatorScores.filter((s) => s.score !== null) as {
+      indicatorId: number;
+      name: string;
+      score: number;
+    }[];
+    const average =
+      valid.length > 0 ? valid.reduce((acc, s) => acc + s.score, 0) / valid.length : null;
+    const weight = weights.get(pid) ?? 0;
+    const weighted = average !== null ? average * weight : 0;
+    return { perspectiveId: pid, average, weight, weighted, indicatorScores };
+  });
+
+  const total = perspectives.reduce((acc, p) => acc + p.weighted, 0);
+  return { areaId, perspectives, total };
+}

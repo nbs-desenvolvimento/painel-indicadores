@@ -22,21 +22,70 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import type { Indicator, Perspective } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 const PRESET_COLORS = ["#1e3a5f", "#c9a227", "#0891b2", "#7c3aed", "#15803d", "#dc2626", "#ea580c", "#db2777"];
 
+interface MutationResult<TInput> {
+  mutate: (input: TInput) => void;
+  isPending: boolean;
+}
+
+interface PerspectivesApi {
+  useUtils: () => {
+    perspectives: { invalidate: () => void };
+    dashboard: { invalidate: () => void };
+    invalidate: () => void;
+  };
+  perspectives: {
+    list: {
+      useQuery: (
+        input: { companyId: number | undefined },
+        opts: { enabled: boolean },
+      ) => { data: Perspective[] | undefined; isLoading: boolean };
+    };
+    create: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ companyId: number; name: string; color: string; sortOrder: number }>;
+    };
+    update: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ id: number; name?: string; color?: string; sortOrder?: number }>;
+    };
+    delete: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ id: number }>;
+    };
+  };
+  indicators: {
+    list: {
+      useQuery: (
+        input: { companyId: number | undefined },
+        opts: { enabled: boolean },
+      ) => { data: Indicator[] | undefined };
+    };
+  };
+}
+
 export default function CadastroPerspectivas() {
   const { companyId } = useApp();
-  const utils = trpc.useUtils();
-  const { data: perspectives, isLoading } = trpc.perspectives.list.useQuery(
+  const api = trpcApi as PerspectivesApi;
+  const utils = api.useUtils();
+  const { data: perspectives, isLoading } = api.perspectives.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
-  const { data: indicators } = trpc.indicators.list.useQuery(
+  const { data: indicators } = api.indicators.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
@@ -55,7 +104,7 @@ export default function CadastroPerspectivas() {
     utils.dashboard.invalidate();
   };
 
-  const createMut = trpc.perspectives.create.useMutation({
+  const createMut = api.perspectives.create.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Perspectiva criada");
@@ -63,7 +112,7 @@ export default function CadastroPerspectivas() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const updateMut = trpc.perspectives.update.useMutation({
+  const updateMut = api.perspectives.update.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Perspectiva atualizada");
@@ -71,7 +120,7 @@ export default function CadastroPerspectivas() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const deleteMut = trpc.perspectives.delete.useMutation({
+  const deleteMut = api.perspectives.delete.useMutation({
     onSuccess: () => {
       utils.invalidate();
       toast.success("Perspectiva excluída");

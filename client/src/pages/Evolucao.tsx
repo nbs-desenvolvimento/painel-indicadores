@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MONTH_NAMES_SHORT, useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import { useDashboardHistory } from "@/lib/apiHooks";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -56,7 +56,7 @@ export default function Evolucao() {
   });
 
   const periods = useMemo(() => buildLast12Periods(year, month), [year, month]);
-  const { data: history, isLoading } = trpc.dashboard.history.useQuery(
+  const { data: history, isLoading } = useDashboardHistory(
     { companyId: companyId ?? 0, periods },
     { enabled: !!companyId },
   );

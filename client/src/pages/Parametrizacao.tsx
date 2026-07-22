@@ -4,31 +4,93 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import type { Area, AreaPerspectiveWeight, Indicator, IndicatorAreaApplicability, Perspective } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+interface MutationResult<TInput> {
+  mutate: (input: TInput) => void;
+}
+
+interface ListQuery<T, TInput> {
+  useQuery: (input: TInput, opts: { enabled: boolean }) => { data: T[] | undefined; isLoading: boolean };
+}
+
+interface ParametrizacaoApi {
+  useUtils: () => {
+    weights: { list: { invalidate: () => void } };
+    dashboard: { invalidate: () => void };
+    applicability: {
+      list: {
+        cancel: (input?: { indicatorIds: number[] }) => Promise<void>;
+        getData: (input: { indicatorIds: number[] }) => IndicatorAreaApplicability[] | undefined;
+        setData: (
+          input: { indicatorIds: number[] },
+          updater:
+            | IndicatorAreaApplicability[]
+            | undefined
+            | ((
+                old: IndicatorAreaApplicability[] | undefined,
+              ) => IndicatorAreaApplicability[] | undefined),
+        ) => void;
+        invalidate: () => void;
+      };
+    };
+  };
+  areas: { list: ListQuery<Area, { companyId: number | undefined }> };
+  perspectives: { list: ListQuery<Perspective, { companyId: number | undefined }> };
+  indicators: { list: ListQuery<Indicator, { companyId: number | undefined }> };
+  weights: {
+    list: ListQuery<AreaPerspectiveWeight, { areaIds: number[] }>;
+    set: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+        onSettled: () => void;
+      }) => MutationResult<{ areaId: number; perspectiveId: number; weight: number }>;
+    };
+  };
+  applicability: {
+    list: ListQuery<IndicatorAreaApplicability, { indicatorIds: number[] }>;
+    set: {
+      useMutation: (opts: {
+        onMutate: (vars: { indicatorId: number; areaId: number; applicable: boolean }) => Promise<{
+          prev: IndicatorAreaApplicability[] | undefined;
+        }>;
+        onError: (
+          e: { message: string },
+          v: { indicatorId: number; areaId: number; applicable: boolean },
+          ctx: { prev: IndicatorAreaApplicability[] | undefined } | undefined,
+        ) => void;
+        onSettled: () => void;
+      }) => MutationResult<{ indicatorId: number; areaId: number; applicable: boolean }>;
+    };
+  };
+}
+
 export default function Parametrizacao() {
   const { companyId } = useApp();
-  const utils = trpc.useUtils();
+  const api = trpcApi as ParametrizacaoApi;
+  const utils = api.useUtils();
 
-  const { data: areas, isLoading: l1 } = trpc.areas.list.useQuery(
+  const { data: areas, isLoading: l1 } = api.areas.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
-  const { data: perspectives, isLoading: l2 } = trpc.perspectives.list.useQuery(
+  const { data: perspectives, isLoading: l2 } = api.perspectives.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
-  const { data: indicators, isLoading: l3 } = trpc.indicators.list.useQuery(
+  const { data: indicators, isLoading: l3 } = api.indicators.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
   const areaIds = useMemo(() => (areas ?? []).map((a) => a.id), [areas]);
   const indicatorIds = useMemo(() => (indicators ?? []).map((i) => i.id), [indicators]);
-  const { data: weights } = trpc.weights.list.useQuery({ areaIds }, { enabled: areaIds.length > 0 });
-  const { data: applicability } = trpc.applicability.list.useQuery(
+  const { data: weights } = api.weights.list.useQuery({ areaIds }, { enabled: areaIds.length > 0 });
+  const { data: applicability } = api.applicability.list.useQuery(
     { indicatorIds },
     { enabled: indicatorIds.length > 0 },
   );
@@ -51,7 +113,7 @@ export default function Parametrizacao() {
     }
   }, [weights, areas, perspectives]);
 
-  const setWeightMut = trpc.weights.set.useMutation({
+  const setWeightMut = api.weights.set.useMutation({
     onSuccess: () => {
       utils.weights.list.invalidate();
       utils.dashboard.invalidate();
@@ -60,7 +122,7 @@ export default function Parametrizacao() {
     onSettled: () => setSavingKey(null),
   });
 
-  const setApplMut = trpc.applicability.set.useMutation({
+  const setApplMut = api.applicability.set.useMutation({
     onMutate: async (vars) => {
       await utils.applicability.list.cancel();
       const prev = utils.applicability.list.getData({ indicatorIds });

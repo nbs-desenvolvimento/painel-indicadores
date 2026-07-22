@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { User } from "../drizzle/schema";
+import type { User } from "./drizzle/schema";
 import { authenticateRequest } from "./_core/auth";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";

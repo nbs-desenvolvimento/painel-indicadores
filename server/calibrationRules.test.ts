@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeScoreWithRule, type CalibrationRuleDef } from "../shared/calcEngine";
+import { computeScoreWithRule, type CalibrationRuleDef } from "./calcEngine";
 
 /**
  * Testes das 6 regras de calibragem pré-carregadas, reproduzindo exatamente

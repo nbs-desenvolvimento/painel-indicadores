@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { SCALE_TYPES } from "../shared/calcEngine";
+import { SCALE_TYPES } from "./calcEngine";
 import { signAuthToken } from "./_core/auth";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";

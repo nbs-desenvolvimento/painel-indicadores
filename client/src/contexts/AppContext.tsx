@@ -1,4 +1,5 @@
-import { trpc } from "@/lib/trpc";
+import type { Company } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 export const MONTH_NAMES = [
@@ -26,7 +27,10 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const { data: companies, isLoading: companiesLoading } = trpc.companies.list.useQuery();
+  const { data: companies, isLoading: companiesLoading } = trpcApi.companies.list.useQuery() as {
+    data: Company[] | undefined;
+    isLoading: boolean;
+  };
   const [companyId, setCompanyIdState] = useState<number | null>(() => {
     const saved = localStorage.getItem("app-company-id");
     return saved ? parseInt(saved, 10) : null;

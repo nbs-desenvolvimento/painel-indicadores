@@ -2,11 +2,46 @@ import { PageSkeleton, PageToolbar, ScoreBadge } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { fmtScore, useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
-import { computeScore, computeScoreWithRule, type CalibrationRuleDef, type ScaleType } from "@shared/calcEngine";
+import type { CalibrationRule, Indicator, IndicatorEntry, Perspective } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
+import { computeScore, computeScoreWithRule, type CalibrationRuleDef, type ScaleType } from "@/lib/calcEngine";
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
+interface MutationResult<TInput> {
+  mutate: (input: TInput) => void;
+}
+
+interface ListQuery<T, TInput> {
+  useQuery: (input: TInput, opts: { enabled: boolean }) => { data: T[] | undefined; isLoading: boolean };
+}
+
+interface LancamentosApi {
+  useUtils: () => {
+    entries: { list: { invalidate: () => void } };
+    dashboard: { invalidate: () => void };
+  };
+  indicators: { list: ListQuery<Indicator, { companyId: number | undefined }> };
+  perspectives: { list: ListQuery<Perspective, { companyId: number | undefined }> };
+  calibrationRules: { list: ListQuery<CalibrationRule, { companyId: number | undefined }> };
+  entries: {
+    list: ListQuery<IndicatorEntry, { indicatorIds: number[]; year: number; month: number }>;
+    upsert: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+        onSettled: () => void;
+      }) => MutationResult<{
+        indicatorId: number;
+        year: number;
+        month: number;
+        goal: number | null;
+        result: number | null;
+      }>;
+    };
+  };
+}
 
 /** Converte string pt-BR para número (aceita vírgula decimal e %) */
 function parseNum(s: string): number | null {
@@ -27,18 +62,19 @@ function fmtInput(v: number | null | undefined, unit?: string | null): string {
 
 export default function Lancamentos() {
   const { companyId, year, month, periodLabel } = useApp();
-  const utils = trpc.useUtils();
+  const api = trpcApi as LancamentosApi;
+  const utils = api.useUtils();
 
-  const { data: indicators, isLoading: indsLoading } = trpc.indicators.list.useQuery(
+  const { data: indicators, isLoading: indsLoading } = api.indicators.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
-  const { data: perspectives } = trpc.perspectives.list.useQuery(
+  const { data: perspectives } = api.perspectives.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
   const indicatorIds = useMemo(() => indicators?.map((i) => i.id) ?? [], [indicators]);
-  const { data: entries, isLoading: entriesLoading } = trpc.entries.list.useQuery(
+  const { data: entries, isLoading: entriesLoading } = api.entries.list.useQuery(
     { indicatorIds, year, month },
     { enabled: indicatorIds.length > 0 },
   );
@@ -47,7 +83,7 @@ export default function Lancamentos() {
   const [draft, setDraft] = useState<Record<number, { goal: string; result: string }>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
 
-  const { data: rules } = trpc.calibrationRules.list.useQuery(
+  const { data: rules } = api.calibrationRules.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
@@ -68,7 +104,7 @@ export default function Lancamentos() {
     }
   }, [indicators, entries]);
 
-  const upsertMutation = trpc.entries.upsert.useMutation({
+  const upsertMutation = api.entries.upsert.useMutation({
     onSuccess: () => {
       utils.entries.list.invalidate();
       utils.dashboard.invalidate();

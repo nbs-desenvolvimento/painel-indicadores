@@ -30,11 +30,94 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
-import { SCALE_TYPE_LABELS, type ScaleType } from "@shared/calcEngine";
+import type { Area, CalibrationRule, Indicator, IndicatorAreaApplicability, Objective, Perspective } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
+import { SCALE_TYPE_LABELS, type ScaleType } from "@/lib/calcEngine";
 import { Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
+interface MutationResult<TInput, TOutput = void> {
+  mutate: (input: TInput) => void;
+  mutateAsync: (input: TInput) => Promise<TOutput>;
+  isPending: boolean;
+}
+
+interface ListQuery<T, TInput> {
+  useQuery: (input: TInput, opts: { enabled: boolean }) => { data: T[] | undefined; isLoading: boolean };
+}
+
+interface IndicatorsApi {
+  useUtils: () => {
+    indicators: { invalidate: () => void };
+    dashboard: { invalidate: () => void };
+    applicability: { invalidate: () => void };
+  };
+  indicators: {
+    list: ListQuery<Indicator, { companyId: number | undefined }>;
+    create: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<
+        {
+          companyId: number;
+          name: string;
+          description?: string;
+          perspectiveId: number;
+          scaleType: ScaleType;
+          objectiveId: number | null;
+          calibrationRuleId: number;
+          defaultGoal: number | null;
+          unit: string;
+          sortOrder: number;
+        },
+        { id: number }
+      >;
+    };
+    update: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{
+        id: number;
+        name?: string;
+        description?: string;
+        perspectiveId?: number;
+        scaleType?: ScaleType;
+        objectiveId?: number | null;
+        calibrationRuleId?: number;
+        defaultGoal?: number | null;
+        unit?: string;
+        sortOrder?: number;
+      }>;
+    };
+    delete: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ id: number }>;
+    };
+  };
+  perspectives: { list: ListQuery<Perspective, { companyId: number | undefined }> };
+  objectives: { list: ListQuery<Objective, { companyId: number | undefined }> };
+  calibrationRules: { list: ListQuery<CalibrationRule, { companyId: number | undefined }> };
+  areas: { list: ListQuery<Area, { companyId: number | undefined }> };
+  applicability: {
+    list: {
+      useQuery: (
+        input: { indicatorIds: number[] },
+        opts: { enabled: boolean },
+      ) => { data: IndicatorAreaApplicability[] | undefined };
+    };
+    setForIndicator: {
+      useMutation: (opts: { onError: (e: { message: string }) => void }) => MutationResult<{
+        indicatorId: number;
+        areaIds: number[];
+      }>;
+    };
+  };
+}
 const UNITS = [
   { value: "number", label: "Número" },
   { value: "percent", label: "Percentual" },
@@ -58,21 +141,22 @@ const NONE = "none";
 
 export default function CadastroIndicadores() {
   const { companyId } = useApp();
-  const utils = trpc.useUtils();
-  const { data: indicators, isLoading } = trpc.indicators.list.useQuery(
+  const api = trpcApi as IndicatorsApi;
+  const utils = api.useUtils();
+  const { data: indicators, isLoading } = api.indicators.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
-  const { data: perspectives } = trpc.perspectives.list.useQuery(
+  const { data: perspectives } = api.perspectives.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
 
-  const { data: objectives } = trpc.objectives.list.useQuery(
+  const { data: objectives } = api.objectives.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
-  const { data: rules } = trpc.calibrationRules.list.useQuery(
+  const { data: rules } = api.calibrationRules.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
@@ -94,16 +178,16 @@ export default function CadastroIndicadores() {
   const [filterPersp, setFilterPersp] = useState<string>("all");
   const [selectedAreas, setSelectedAreas] = useState<Set<number>>(new Set());
 
-  const { data: areas } = trpc.areas.list.useQuery(
+  const { data: areas } = api.areas.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
   const indicatorIds = useMemo(() => (indicators ?? []).map((i) => i.id), [indicators]);
-  const { data: applRows } = trpc.applicability.list.useQuery(
+  const { data: applRows } = api.applicability.list.useQuery(
     { indicatorIds },
     { enabled: indicatorIds.length > 0 },
   );
-  const setForIndicatorMut = trpc.applicability.setForIndicator.useMutation({
+  const setForIndicatorMut = api.applicability.setForIndicator.useMutation({
     onError: (e) => toast.error(`Falha ao vincular áreas: ${e.message}`),
   });
 
@@ -153,7 +237,7 @@ export default function CadastroIndicadores() {
     utils.dashboard.invalidate();
   };
 
-  const createMut = trpc.indicators.create.useMutation({
+  const createMut = api.indicators.create.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Indicador criado");
@@ -161,7 +245,7 @@ export default function CadastroIndicadores() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const updateMut = trpc.indicators.update.useMutation({
+  const updateMut = api.indicators.update.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Indicador atualizado");
@@ -169,7 +253,7 @@ export default function CadastroIndicadores() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const deleteMut = trpc.indicators.delete.useMutation({
+  const deleteMut = api.indicators.delete.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Indicador excluído");

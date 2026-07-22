@@ -1,7 +1,7 @@
 import { EmptyState, PageSkeleton, PageToolbar, ScoreBadge, ScoreGauge } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtScore, scoreColor, useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import { useDashboardSnapshot } from "@/lib/apiHooks";
 import { Trophy } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -18,7 +18,7 @@ import {
 
 export default function Home() {
   const { companyId, year, month, periodLabel } = useApp();
-  const { data: snap, isLoading } = trpc.dashboard.snapshot.useQuery(
+  const { data: snap, isLoading } = useDashboardSnapshot(
     { companyId: companyId ?? 0, year, month },
     { enabled: !!companyId },
   );

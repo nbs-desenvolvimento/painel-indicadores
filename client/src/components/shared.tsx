@@ -8,8 +8,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { downloadAuthedFile } from "@/lib/downloadFile";
 import { Download, FileSpreadsheet, Printer } from "lucide-react";
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts";
+import { toast } from "sonner";
 
 /** Barra superior com título, seletor de empresa/período e ações de exportação */
 export function PageToolbar({
@@ -29,7 +31,10 @@ export function PageToolbar({
 
   const handleExcel = () => {
     if (!companyId) return;
-    window.open(`/api/export/excel?companyId=${companyId}&year=${year}&month=${month}`, "_blank");
+    downloadAuthedFile(
+      `/api/export/excel?companyId=${companyId}&year=${year}&month=${month}`,
+      `relatorio-indicadores-${year}-${String(month).padStart(2, "0")}.xlsx`,
+    ).catch((e) => toast.error(e.message));
   };
 
   const handlePrint = () => {

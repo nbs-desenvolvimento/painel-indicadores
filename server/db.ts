@@ -14,7 +14,7 @@ import {
   perspectives,
   User,
   users,
-} from "../drizzle/schema";
+} from "./drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 

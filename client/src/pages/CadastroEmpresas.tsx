@@ -21,14 +21,46 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { trpc } from "@/lib/trpc";
+import type { Company } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
 import { Building2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+interface MutationResult<TInput, TOutput> {
+  mutate: (input: TInput) => void;
+  isPending: boolean;
+}
+
+interface CompaniesApi {
+  useUtils: () => { companies: { list: { invalidate: () => void } }; invalidate: () => void };
+  companies: {
+    list: { useQuery: () => { data: Company[] | undefined; isLoading: boolean } };
+    create: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ name: string; cnpj?: string }, { id: number }>;
+    };
+    update: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ id: number; name?: string; cnpj?: string }, { success: true }>;
+    };
+    delete: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ id: number }, { success: true }>;
+    };
+  };
+}
+
 export default function CadastroEmpresas() {
-  const utils = trpc.useUtils();
-  const { data: companies, isLoading } = trpc.companies.list.useQuery();
+  const api = trpcApi as CompaniesApi;
+  const utils = api.useUtils();
+  const { data: companies, isLoading } = api.companies.list.useQuery();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<{ id: number | null; name: string; cnpj: string }>({
     id: null,
@@ -37,7 +69,7 @@ export default function CadastroEmpresas() {
   });
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  const createMut = trpc.companies.create.useMutation({
+  const createMut = api.companies.create.useMutation({
     onSuccess: () => {
       utils.companies.list.invalidate();
       toast.success("Empresa criada");
@@ -45,7 +77,7 @@ export default function CadastroEmpresas() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const updateMut = trpc.companies.update.useMutation({
+  const updateMut = api.companies.update.useMutation({
     onSuccess: () => {
       utils.companies.list.invalidate();
       toast.success("Empresa atualizada");
@@ -53,7 +85,7 @@ export default function CadastroEmpresas() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const deleteMut = trpc.companies.delete.useMutation({
+  const deleteMut = api.companies.delete.useMutation({
     onSuccess: () => {
       utils.invalidate();
       toast.success("Empresa excluída");

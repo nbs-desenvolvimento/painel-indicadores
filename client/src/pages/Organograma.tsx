@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fmtScore, scoreColor, useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import { useDashboardSnapshot } from "@/lib/apiHooks";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
@@ -120,7 +120,7 @@ function OrgNode({
 
 export default function Organograma() {
   const { companyId, year, month } = useApp();
-  const { data: snap, isLoading } = trpc.dashboard.snapshot.useQuery(
+  const { data: snap, isLoading } = useDashboardSnapshot(
     { companyId: companyId ?? 0, year, month },
     { enabled: !!companyId },
   );

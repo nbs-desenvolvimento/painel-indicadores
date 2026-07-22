@@ -6,7 +6,7 @@ import {
   type CalibrationRuleDef,
   type IndicatorInput,
   type ScaleType,
-} from "../shared/calcEngine";
+} from "./calcEngine";
 import * as db from "./db";
 
 /** Monta o mapa ruleId → definição da regra de calibragem */

@@ -24,23 +24,76 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import type { Indicator, Objective, Perspective } from "@/lib/apiTypes";
+import { trpcApi } from "@/lib/trpcApi";
 import { Pencil, Plus, Target, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+interface MutationResult<TInput> {
+  mutate: (input: TInput) => void;
+  isPending: boolean;
+}
+
+interface ListQuery<T> {
+  useQuery: (
+    input: { companyId: number | undefined },
+    opts: { enabled: boolean },
+  ) => { data: T[] | undefined; isLoading: boolean };
+}
+
+interface ObjectivesApi {
+  useUtils: () => { objectives: { invalidate: () => void }; indicators: { invalidate: () => void } };
+  objectives: {
+    list: ListQuery<Objective>;
+    create: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{
+        companyId: number;
+        name: string;
+        description?: string;
+        perspectiveId: number;
+        sortOrder: number;
+      }>;
+    };
+    update: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{
+        id: number;
+        name?: string;
+        description?: string | null;
+        perspectiveId?: number;
+        sortOrder?: number;
+      }>;
+    };
+    delete: {
+      useMutation: (opts: {
+        onSuccess: () => void;
+        onError: (e: { message: string }) => void;
+      }) => MutationResult<{ id: number }>;
+    };
+  };
+  perspectives: { list: ListQuery<Perspective> };
+  indicators: { list: ListQuery<Indicator> };
+}
+
 export default function CadastroObjetivos() {
   const { companyId } = useApp();
-  const utils = trpc.useUtils();
-  const { data: objectives, isLoading } = trpc.objectives.list.useQuery(
+  const api = trpcApi as ObjectivesApi;
+  const utils = api.useUtils();
+  const { data: objectives, isLoading } = api.objectives.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
-  const { data: perspectives } = trpc.perspectives.list.useQuery(
+  const { data: perspectives } = api.perspectives.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
-  const { data: indicators } = trpc.indicators.list.useQuery(
+  const { data: indicators } = api.indicators.list.useQuery(
     { companyId: companyId ?? undefined },
     { enabled: !!companyId },
   );
@@ -60,7 +113,7 @@ export default function CadastroObjetivos() {
     utils.indicators.invalidate();
   };
 
-  const createMut = trpc.objectives.create.useMutation({
+  const createMut = api.objectives.create.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Objetivo criado");
@@ -68,7 +121,7 @@ export default function CadastroObjetivos() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const updateMut = trpc.objectives.update.useMutation({
+  const updateMut = api.objectives.update.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Objetivo atualizado");
@@ -76,7 +129,7 @@ export default function CadastroObjetivos() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const deleteMut = trpc.objectives.delete.useMutation({
+  const deleteMut = api.objectives.delete.useMutation({
     onSuccess: () => {
       invalidate();
       toast.success("Objetivo excluído");

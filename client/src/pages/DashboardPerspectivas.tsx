@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fmtScore, fmtValue, scoreColor, useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import { useDashboardSnapshot } from "@/lib/apiHooks";
 import { useEffect, useState } from "react";
 import {
   Bar,
@@ -26,7 +26,7 @@ export default function DashboardPerspectivas() {
   const { companyId, year, month, periodLabel } = useApp();
   const [perspectiveId, setPerspectiveId] = useState<number | null>(null);
 
-  const { data: snap, isLoading } = trpc.dashboard.snapshot.useQuery(
+  const { data: snap, isLoading } = useDashboardSnapshot(
     { companyId: companyId ?? 0, year, month },
     { enabled: !!companyId },
   );

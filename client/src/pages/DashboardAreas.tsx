@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fmtScore, fmtValue, scoreColor, useApp } from "@/contexts/AppContext";
-import { trpc } from "@/lib/trpc";
+import { useDashboardSnapshot } from "@/lib/apiHooks";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "wouter";
 
@@ -18,7 +18,7 @@ export default function DashboardAreas() {
   const urlArea = searchParams.get("area");
   const [areaId, setAreaId] = useState<number | null>(urlArea ? parseInt(urlArea) : null);
 
-  const { data: snap, isLoading } = trpc.dashboard.snapshot.useQuery(
+  const { data: snap, isLoading } = useDashboardSnapshot(
     { companyId: companyId ?? 0, year, month },
     { enabled: !!companyId },
   );
