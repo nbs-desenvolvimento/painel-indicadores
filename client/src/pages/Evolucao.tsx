@@ -1,4 +1,4 @@
-import { EmptyState, PageSkeleton, PageToolbar } from "@/components/shared";
+import { DashboardEmptyState, PageSkeleton, PageToolbar } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MONTH_NAMES_SHORT, useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useDashboardHistory } from "@/lib/apiHooks";
 import { useMemo, useState } from "react";
 import {
@@ -48,6 +49,8 @@ type Mode = "areas" | "perspectivas" | "indicadores";
 
 export default function Evolucao() {
   const { companyId, year, month, periodLabel } = useApp();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [mode, setMode] = useState<Mode>("areas");
   const [selectedIds, setSelectedIds] = useState<Record<Mode, string>>({
     areas: "all",
@@ -67,7 +70,11 @@ export default function Evolucao() {
     return (
       <>
         <PageToolbar title="Evolução Mensal" subtitle={periodLabel} />
-        <EmptyState title="Sem dados para exibir" description="Cadastre áreas e lance resultados para acompanhar a evolução." />
+        <DashboardEmptyState
+          isAdmin={isAdmin}
+          adminTitle="Sem dados para exibir"
+          adminDescription="Cadastre áreas e lance resultados para acompanhar a evolução."
+        />
       </>
     );
   }

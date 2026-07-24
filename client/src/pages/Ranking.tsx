@@ -1,6 +1,7 @@
-import { EmptyState, PageSkeleton, PageToolbar, ScoreBadge } from "@/components/shared";
+import { DashboardEmptyState, PageSkeleton, PageToolbar, ScoreBadge } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtScore, scoreColor, useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
 import { Medal, Trophy } from "lucide-react";
 import {
@@ -18,6 +19,8 @@ import {
 
 export default function Ranking() {
   const { companyId, year, month, periodLabel } = useApp();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const { data: snap, isLoading } = useDashboardSnapshot(
     { companyId: companyId ?? 0, year, month },
     { enabled: !!companyId },
@@ -29,7 +32,11 @@ export default function Ranking() {
     return (
       <>
         <PageToolbar title="Ranking de Áreas" subtitle={periodLabel} />
-        <EmptyState title="Sem dados para exibir" description="Cadastre áreas e lance resultados para gerar o ranking." />
+        <DashboardEmptyState
+          isAdmin={isAdmin}
+          adminTitle="Sem dados para exibir"
+          adminDescription="Cadastre áreas e lance resultados para gerar o ranking."
+        />
       </>
     );
   }

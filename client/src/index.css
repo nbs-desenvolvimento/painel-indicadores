@@ -19,29 +19,29 @@
   --secondary-foreground: oklch(0.3 0.055 255);
   --muted: oklch(0.955 0.008 90);
   --muted-foreground: oklch(0.5 0.02 255);
-  --accent: oklch(0.72 0.12 85);
+  --accent: oklch(0.76 0.17 131);
   --accent-foreground: oklch(0.22 0.03 255);
   --destructive: oklch(0.55 0.2 25);
   --destructive-foreground: oklch(0.98 0.005 90);
   --border: oklch(0.9 0.01 90);
   --input: oklch(0.9 0.01 90);
-  --ring: oklch(0.72 0.12 85);
+  --ring: oklch(0.76 0.17 131);
   --radius: 0.625rem;
 
   --chart-1: oklch(0.3 0.055 255);
-  --chart-2: oklch(0.72 0.12 85);
+  --chart-2: oklch(0.76 0.17 131);
   --chart-3: oklch(0.55 0.12 200);
   --chart-4: oklch(0.5 0.15 300);
   --chart-5: oklch(0.6 0.13 150);
 
   --sidebar: oklch(0.22 0.04 255);
   --sidebar-foreground: oklch(0.92 0.01 90);
-  --sidebar-primary: oklch(0.72 0.12 85);
+  --sidebar-primary: oklch(0.76 0.17 131);
   --sidebar-primary-foreground: oklch(0.2 0.03 255);
   --sidebar-accent: oklch(0.28 0.045 255);
   --sidebar-accent-foreground: oklch(0.95 0.008 90);
   --sidebar-border: oklch(0.3 0.04 255);
-  --sidebar-ring: oklch(0.72 0.12 85);
+  --sidebar-ring: oklch(0.76 0.17 131);
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
@@ -57,28 +57,28 @@
   --card-foreground: oklch(0.93 0.01 90);
   --popover: oklch(0.21 0.03 255);
   --popover-foreground: oklch(0.93 0.01 90);
-  --primary: oklch(0.72 0.12 85);
+  --primary: oklch(0.76 0.17 131);
   --primary-foreground: oklch(0.2 0.03 255);
   --secondary: oklch(0.26 0.035 255);
   --secondary-foreground: oklch(0.93 0.01 90);
   --muted: oklch(0.25 0.03 255);
   --muted-foreground: oklch(0.65 0.015 90);
-  --accent: oklch(0.72 0.12 85);
+  --accent: oklch(0.76 0.17 131);
   --accent-foreground: oklch(0.2 0.03 255);
   --destructive: oklch(0.6 0.2 25);
   --destructive-foreground: oklch(0.98 0.005 90);
   --border: oklch(0.3 0.03 255);
   --input: oklch(0.3 0.03 255);
-  --ring: oklch(0.72 0.12 85);
+  --ring: oklch(0.76 0.17 131);
 
   --sidebar: oklch(0.15 0.025 255);
   --sidebar-foreground: oklch(0.92 0.01 90);
-  --sidebar-primary: oklch(0.72 0.12 85);
+  --sidebar-primary: oklch(0.76 0.17 131);
   --sidebar-primary-foreground: oklch(0.2 0.03 255);
   --sidebar-accent: oklch(0.22 0.03 255);
   --sidebar-accent-foreground: oklch(0.95 0.008 90);
   --sidebar-border: oklch(0.25 0.03 255);
-  --sidebar-ring: oklch(0.72 0.12 85);
+  --sidebar-ring: oklch(0.76 0.17 131);
 }
 
 @theme inline {
@@ -215,4 +215,27 @@ button:active {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+}
+
+/* ===== Scrollbar que só aparece no hover ===== */
+.scrollbar-hover {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scrollbar-hover:hover {
+  scrollbar-color: var(--sidebar-border) transparent;
+}
+.scrollbar-hover::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-hover::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 9999px;
+}
+.scrollbar-hover:hover::-webkit-scrollbar-thumb {
+  background-color: var(--sidebar-border);
 }

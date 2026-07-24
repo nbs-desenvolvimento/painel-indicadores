@@ -32,7 +32,6 @@ import {
   Compass,
   Crosshair,
   SlidersHorizontal,
-  FileSpreadsheet,
   FileUp,
   Gauge,
   Grid3X3,
@@ -122,17 +121,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) {
     return (
-      <div className="min-h-screen flex">
+      <div className="h-screen w-full flex overflow-hidden bg-background">
         {/* Painel esquerdo decorativo */}
-        <div className="hidden lg:flex flex-col justify-between w-1/2 bg-sidebar text-sidebar-foreground p-12">
+        <div className="hidden lg:flex flex-col justify-between w-1/2 h-full bg-sidebar text-sidebar-foreground p-12 xl:p-16">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-sidebar-primary flex items-center justify-center">
-              <FileSpreadsheet className="h-5 w-5 text-sidebar-primary-foreground" />
-            </div>
-            <span className="font-semibold text-lg tracking-tight">Painel de Indicadores</span>
+            <img
+              src="/logo-painel-branco.png"
+              alt="Painel de Gestão por Indicadores"
+              className="h-10 w-10 object-contain shrink-0"
+            />
+            <span className="font-semibold text-lg tracking-tight">Painel de Gestão por Indicadores</span>
           </div>
           <div>
-            <h2 className="font-serif text-5xl leading-tight mb-6">
+            <h2 className="font-serif text-4xl xl:text-5xl leading-tight mb-6">
               Gestão de desempenho<br />com precisão executiva.
             </h2>
             <p className="text-sidebar-foreground/70 max-w-md leading-relaxed">
@@ -140,23 +141,55 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               com o mesmo rigor de cálculo da sua planilha, em dashboards elegantes.
             </p>
           </div>
-          <p className="text-xs text-sidebar-foreground/50">Balanced Scorecard · Indicadores · Resultados</p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs text-sidebar-foreground/50">Balanced Scorecard · Indicadores · Resultados</p>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-sidebar-foreground/40">Desenvolvido por</span>
+              <img
+                src="/logo-nbs-branco.png"
+                alt="NBS Consulting Group"
+                className="h-5 w-auto object-contain opacity-90"
+              />
+            </div>
+          </div>
         </div>
         {/* Painel de login */}
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="flex flex-col items-center gap-8 max-w-md w-full">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-14 w-14 rounded-xl bg-primary flex items-center justify-center lg:hidden">
-                <FileSpreadsheet className="h-7 w-7 text-primary-foreground" />
+        <div className="flex-1 h-full flex flex-col overflow-y-auto">
+          <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
+            <div className="flex flex-col items-center gap-8 max-w-md w-full">
+              <div className="flex flex-col items-center gap-4">
+                <img
+                  src="/logo-painel-azul.png"
+                  alt="Painel de Gestão por Indicadores"
+                  className="h-16 w-16 object-contain lg:hidden dark:hidden"
+                />
+                <img
+                  src="/logo-painel-branco.png"
+                  alt="Painel de Gestão por Indicadores"
+                  className="h-16 w-16 object-contain lg:hidden hidden dark:block"
+                />
+                <h1 className="text-2xl font-semibold tracking-tight text-center">
+                  Acesse o Painel de Gestão por Indicadores
+                </h1>
+                <p className="text-sm text-muted-foreground text-center max-w-sm">
+                  Faça login para acessar os dashboards, lançamentos e cadastros do sistema de gestão de desempenho.
+                </p>
               </div>
-              <h1 className="text-2xl font-semibold tracking-tight text-center">
-                Acesse o Painel de Indicadores
-              </h1>
-              <p className="text-sm text-muted-foreground text-center max-w-sm">
-                Faça login para acessar os dashboards, lançamentos e cadastros do sistema de gestão de desempenho.
-              </p>
+              <LoginForm />
             </div>
-            <LoginForm />
+          </div>
+          <div className="flex items-center justify-center gap-2 py-6 shrink-0">
+            <span className="text-xs text-muted-foreground">Desenvolvido por</span>
+            <img
+              src="/nbs_logo_cinza.png"
+              alt="NBS Consulting Group"
+              className="h-5 w-auto object-contain dark:hidden"
+            />
+            <img
+              src="/logo-nbs-branco.png"
+              alt="NBS Consulting Group"
+              className="h-5 w-auto object-contain hidden dark:block"
+            />
           </div>
         </div>
       </div>
@@ -286,32 +319,32 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
     <>
       <div className="relative" ref={sidebarRef}>
         <Sidebar collapsible="icon" className="border-r-0" disableTransition={isResizing}>
-          <SidebarHeader className="h-16 justify-center">
-            <div className="flex items-center gap-3 px-2 transition-all w-full">
-              <button
-                onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center hover:bg-sidebar-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
-                aria-label="Alternar navegação"
-              >
-                <PanelLeft className="h-4 w-4 text-sidebar-foreground/70" />
-              </button>
+          <SidebarHeader className="items-right py-3">
+            <button
+              onClick={toggleSidebar}
+              className="h-8 w-8 flex items-center justify-center hover:bg-sidebar-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+              aria-label="Alternar navegação"
+            >
+              <PanelLeft className="h-4 w-4 text-sidebar-foreground/70" />
+            </button>
+            <div className="flex flex-col items-center gap-2 w-full px-1">
+              <img
+                src="/logo-painel-branco.png"
+                alt="Painel de Gestão por Indicadores"
+                className="h-8 w-8 object-contain shrink-0"
+              />
               {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="h-7 w-7 rounded-md bg-sidebar-primary flex items-center justify-center shrink-0">
-                    <FileSpreadsheet className="h-4 w-4 text-sidebar-primary-foreground" />
-                  </div>
-                  <span className="font-semibold tracking-tight truncate text-sidebar-foreground">
-                    Indicadores
-                  </span>
-                </div>
+                <span className="font-semibold tracking-tight text-center text-sm leading-tight text-sidebar-foreground">
+                  Painel de Gestão por Indicadores
+                </span>
               ) : null}
             </div>
           </SidebarHeader>
 
-          <SidebarContent className="gap-0">
+          <SidebarContent className="gap-1 scrollbar-hover">
             {visibleGroups.map((group) => (
-              <SidebarGroup key={group.label} className="py-1">
-                <SidebarGroupLabel className="text-sidebar-foreground/50 text-[11px] uppercase tracking-wider">
+              <SidebarGroup key={group.label} className="py-1.5 shrink-0">
+                <SidebarGroupLabel className="text-sidebar-foreground/50 text-[11px] uppercase tracking-wider truncate">
                   {group.label}
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
@@ -367,6 +400,14 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <div className="flex items-center justify-center gap-1.5 pt-2 mt-1 border-t border-sidebar-border/50 group-data-[collapsible=icon]:hidden">
+              <span className="text-[11px] text-sidebar-foreground/40">Desenvolvido por</span>
+              <img
+                src="/logo-nbs-branco.png"
+                alt="NBS Consulting Group"
+                className="h-7 w-auto object-contain opacity-70"
+              />
+            </div>
           </SidebarFooter>
         </Sidebar>
         <div

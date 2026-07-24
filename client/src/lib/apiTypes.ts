@@ -5,7 +5,7 @@
  * procedures de server/routers.ts de fato devolvem; mantenha em sincronia
  * manualmente se o shape do server mudar.
  */
-import type { AreaScore, CalibrationRuleDef, PerspectiveScore, ScaleType } from "@/lib/calcEngine";
+import type { AreaScore, CalibrationRuleDef, Direction, PerspectiveScore, ScaleType } from "@/lib/calcEngine";
 
 export type Role = "user" | "admin";
 
@@ -14,9 +14,15 @@ export interface PublicUser {
   email: string;
   name: string | null;
   role: Role;
+  active: boolean;
   createdAt: Date;
   updatedAt: Date;
   lastSignedIn: Date;
+}
+
+/** Retorno de trpc.users.list — PublicUser + áreas liberadas (só relevante para role="user") */
+export interface UserListItem extends PublicUser {
+  areaIds: number[];
 }
 
 export interface Company {
@@ -72,6 +78,7 @@ export interface Indicator {
   description: string | null;
   unit: string | null;
   scaleType: ScaleType;
+  direction: Direction;
   objectiveId: number | null;
   calibrationRuleId: number | null;
   defaultGoal: number | null;
@@ -212,4 +219,4 @@ export interface DashboardHistory {
   indicators: Indicator[];
 }
 
-export type { CalibrationRuleDef };
+export type { CalibrationRuleDef, Direction };

@@ -118,6 +118,9 @@ export interface ImportResult {
 /**
  * Casa as linhas importadas com os indicadores cadastrados da empresa (por nome
  * normalizado) e faz o upsert das metas/resultados no período.
+ *
+ * `allowedIndicatorIds`: null = sem restrição (admin). Array = usuário comum,
+ * indicadores fora do conjunto caem em `unmatched` em vez de serem gravados.
  */
 export async function importEntries(
   companyId: number,
@@ -125,16 +128,18 @@ export async function importEntries(
   month: number,
   rows: ParsedRow[],
   userId: number,
+  allowedIndicatorIds: number[] | null = null,
 ): Promise<ImportResult> {
   const indicatorsList = await db.listIndicators(companyId);
   const indMap = new Map(indicatorsList.map((i) => [normalizeName(i.name), i]));
+  const allowedSet = allowedIndicatorIds === null ? null : new Set(allowedIndicatorIds);
 
   const matched: ImportResult["matched"] = [];
   const unmatched: string[] = [];
 
   for (const row of rows) {
     const ind = indMap.get(normalizeName(row.indicatorName));
-    if (!ind) {
+    if (!ind || (allowedSet !== null && !allowedSet.has(ind.id))) {
       unmatched.push(row.indicatorName);
       continue;
     }

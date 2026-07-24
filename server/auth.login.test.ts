@@ -30,6 +30,7 @@ function buildUser(overrides: Partial<User> = {}): User {
     name: "Sample User",
     passwordHash: bcrypt.hashSync(PASSWORD, 4),
     role: "user",
+    active: true,
     createdAt: new Date(),
     updatedAt: new Date(),
     lastSignedIn: new Date(),
@@ -96,6 +97,40 @@ describe("auth.login", () => {
     >[0];
     const authenticated = await authenticateRequest(req);
     expect(authenticated.id).toBe(user.id);
+  });
+
+  it("rejects login for a deactivated user even with the correct password", async () => {
+    const user = buildUser({ active: false });
+    dbMocks.getUserByEmail.mockResolvedValue(user);
+
+    await expect(
+      makeCaller().auth.login({ email: user.email, password: PASSWORD }),
+    ).rejects.toThrow("Usuário desativado");
+  });
+
+  it("still rejects a wrong password for a deactivated user with the generic message (no enumeration)", async () => {
+    const user = buildUser({ active: false });
+    dbMocks.getUserByEmail.mockResolvedValue(user);
+
+    await expect(
+      makeCaller().auth.login({ email: user.email, password: "wrong-password" }),
+    ).rejects.toThrow("Email ou senha inválidos");
+  });
+
+  it("drops a session in real time when the user is deactivated after the token was issued", async () => {
+    const user = buildUser();
+    dbMocks.getUserByEmail.mockResolvedValue(user);
+    dbMocks.updateLastSignedIn.mockResolvedValue(undefined);
+
+    const { token } = await makeCaller().auth.login({ email: user.email, password: PASSWORD });
+
+    // Usuário é desativado depois de já ter o token em mãos (ex.: admin desativou no meio da sessão)
+    dbMocks.getUserById.mockResolvedValue({ ...user, active: false });
+
+    const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Parameters<
+      typeof authenticateRequest
+    >[0];
+    await expect(authenticateRequest(req)).rejects.toThrow();
   });
 });
 

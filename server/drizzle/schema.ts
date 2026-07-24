@@ -30,6 +30,8 @@ export const users = pgTable("users", {
   /** Hash bcrypt da senha. Nunca é retornado ao client — ver `toPublicUser` em server/db.ts. */
   passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
   role: roleEnum("role").default("user").notNull(),
+  /** Login e sessão são bloqueados quando false (soft-disable, sem apagar o usuário) */
+  active: boolean("active").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -96,6 +98,18 @@ export const scaleTypeEnum = [
 
 export const scaleTypePgEnum = pgEnum("scaleType", scaleTypeEnum);
 
+/**
+ * Sentido do indicador: o que é positivo para o negócio.
+ * - higher_better: um resultado MAIOR que a meta é uma melhora (ex.: faturamento).
+ * - lower_better: um resultado MENOR que a meta é uma melhora (ex.: nº de acidentes, custo).
+ * Independente da regra de calibragem/scaleType (que definem as faixas de score);
+ * direction apenas inverte o atingimento antes de aplicar as faixas, para que a
+ * mesma régua de scores sirva para indicadores de aumento e de redução.
+ */
+export const directionEnum = ["higher_better", "lower_better"] as const;
+
+export const directionPgEnum = pgEnum("direction", directionEnum);
+
 /** Objetivos estratégicos: perspectivas → objetivos → indicadores */
 export const objectives = pgTable("objectives", {
   id: serial("id").primaryKey(),
@@ -161,6 +175,8 @@ export const indicators = pgTable("indicators", {
   description: text("description"),
   unit: varchar("unit", { length: 32 }).default("number"), // number | percent | currency
   scaleType: scaleTypePgEnum("scaleType").default("higher_better_100").notNull(),
+  /** Sentido do indicador (o que é positivo): aumentar ou reduzir o resultado */
+  direction: directionPgEnum("direction").default("higher_better").notNull(),
   /** Objetivo estratégico ao qual o indicador pertence (perspectivas → objetivos → indicadores) */
   objectiveId: integer("objectiveId"),
   /** Regra de calibragem aplicada ao indicador (substitui o scaleType fixo) */
@@ -201,6 +217,18 @@ export const indicatorAreaApplicability = pgTable(
   (t) => [uniqueIndex("uq_ind_area").on(t.indicatorId, t.areaId)],
 );
 export type IndicatorAreaApplicability = typeof indicatorAreaApplicability.$inferSelect;
+
+/** Áreas que um usuário comum pode ver/lançar. Só relevante para role="user"; admin não é restrito. */
+export const userAreas = pgTable(
+  "user_areas",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("userId").notNull(),
+    areaId: integer("areaId").notNull(),
+  },
+  (t) => [uniqueIndex("uq_user_area").on(t.userId, t.areaId)],
+);
+export type UserArea = typeof userAreas.$inferSelect;
 
 export const entrySourceEnum = pgEnum("source", ["manual", "import"]);
 

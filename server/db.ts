@@ -13,6 +13,7 @@ import {
   objectives,
   perspectives,
   User,
+  userAreas,
   users,
 } from "./drizzle/schema";
 
@@ -46,18 +47,26 @@ export function toPublicUser(user: User): PublicUser {
 /* ------------------------------- Users ------------------------------- */
 export async function listUsers() {
   const db = requireDb(await getDb());
-  return db
+  const rows = await db
     .select({
       id: users.id,
       email: users.email,
       name: users.name,
       role: users.role,
+      active: users.active,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
       lastSignedIn: users.lastSignedIn,
     })
     .from(users)
     .orderBy(asc(users.name));
+  const areaRows = await db.select({ userId: userAreas.userId, areaId: userAreas.areaId }).from(userAreas);
+  const areaMap = new Map<number, number[]>();
+  for (const r of areaRows) {
+    if (!areaMap.has(r.userId)) areaMap.set(r.userId, []);
+    areaMap.get(r.userId)!.push(r.areaId);
+  }
+  return rows.map((u) => ({ ...u, areaIds: areaMap.get(u.id) ?? [] }));
 }
 
 export async function createUser(data: {
@@ -65,10 +74,38 @@ export async function createUser(data: {
   name?: string | null;
   passwordHash: string;
   role?: "user" | "admin";
+  areaIds?: number[];
 }) {
   const db = requireDb(await getDb());
-  const [res] = await db.insert(users).values(data).returning({ id: users.id });
+  const { areaIds, ...rest } = data;
+  const [res] = await db.insert(users).values(rest).returning({ id: users.id });
+  if (rest.role !== "admin" && areaIds && areaIds.length > 0) {
+    await setUserAreas(res.id, areaIds);
+  }
   return res.id;
+}
+
+export async function updateUser(
+  id: number,
+  data: Partial<{ name: string | null; email: string; role: "user" | "admin"; active: boolean; areaIds: number[] }>,
+) {
+  const db = requireDb(await getDb());
+  const { areaIds, ...rest } = data;
+  if (Object.keys(rest).length > 0) {
+    await db.update(users).set({ ...rest, updatedAt: new Date() }).where(eq(users.id, id));
+  }
+  if (rest.role === "admin") {
+    // Admin não é restrito por área — qualquer área residual é limpa.
+    await setUserAreas(id, []);
+  } else if (areaIds !== undefined) {
+    await setUserAreas(id, areaIds);
+  }
+}
+
+export async function deleteUser(id: number) {
+  const db = requireDb(await getDb());
+  await db.delete(userAreas).where(eq(userAreas.userId, id));
+  await db.delete(users).where(eq(users.id, id));
 }
 
 export async function getUserByEmail(email: string) {
@@ -278,6 +315,7 @@ export async function createIndicator(data: {
   description?: string | null;
   unit?: string;
   scaleType: "higher_better_120" | "higher_better_100" | "lower_better_100" | "lower_better_120" | "target_range";
+  direction?: "higher_better" | "lower_better";
   objectiveId?: number | null;
   calibrationRuleId?: number | null;
   defaultGoal?: number | null;
@@ -296,6 +334,7 @@ export async function updateIndicator(
     description: string | null;
     unit: string;
     scaleType: "higher_better_120" | "higher_better_100" | "lower_better_100" | "lower_better_120" | "target_range";
+    direction: "higher_better" | "lower_better";
     objectiveId: number | null;
     calibrationRuleId: number | null;
     defaultGoal: number | null;
@@ -502,6 +541,35 @@ export async function setApplicabilityForIndicator(indicatorId: number, areaIds:
         set: { applicable: true, updatedAt: new Date() },
       });
   }
+}
+
+/* --------------------------- Access control --------------------------- */
+
+/** Áreas liberadas para um usuário comum. Irrelevante para admin (não é restrito). */
+export async function getUserAreaIds(userId: number): Promise<number[]> {
+  const db = requireDb(await getDb());
+  const rows = await db.select({ areaId: userAreas.areaId }).from(userAreas).where(eq(userAreas.userId, userId));
+  return rows.map((r) => r.areaId);
+}
+
+/** Substitui por completo o conjunto de áreas liberadas para o usuário. */
+export async function setUserAreas(userId: number, areaIds: number[]) {
+  const db = requireDb(await getDb());
+  await db.delete(userAreas).where(eq(userAreas.userId, userId));
+  if (areaIds.length > 0) {
+    await db.insert(userAreas).values(areaIds.map((areaId) => ({ userId, areaId })));
+  }
+}
+
+/** Indicadores aplicáveis a pelo menos uma das áreas informadas. */
+export async function getIndicatorIdsForAreas(areaIds: number[]): Promise<number[]> {
+  if (areaIds.length === 0) return [];
+  const db = requireDb(await getDb());
+  const rows = await db
+    .select({ indicatorId: indicatorAreaApplicability.indicatorId })
+    .from(indicatorAreaApplicability)
+    .where(and(inArray(indicatorAreaApplicability.areaId, areaIds), eq(indicatorAreaApplicability.applicable, true)));
+  return Array.from(new Set(rows.map((r) => r.indicatorId)));
 }
 
 /* ------------------------------- Entries ----------------------------- */

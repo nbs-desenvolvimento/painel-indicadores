@@ -1,7 +1,8 @@
-import { PageSkeleton, PageToolbar, ScoreBadge } from "@/components/shared";
+import { DashboardEmptyState, DirectionIcon, PageSkeleton, PageToolbar, ScoreBadge } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { fmtScore, useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/hooks/useAuth";
 import type { CalibrationRule, Indicator, IndicatorEntry, Perspective } from "@/lib/apiTypes";
 import { trpcApi } from "@/lib/trpcApi";
 import { computeScore, computeScoreWithRule, type CalibrationRuleDef, type ScaleType } from "@/lib/calcEngine";
@@ -62,6 +63,8 @@ function fmtInput(v: number | null | undefined, unit?: string | null): string {
 
 export default function Lancamentos() {
   const { companyId, year, month, periodLabel } = useApp();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const api = trpcApi as LancamentosApi;
   const utils = api.useUtils();
 
@@ -128,6 +131,19 @@ export default function Lancamentos() {
   };
 
   if (indsLoading || !companyId) return <PageSkeleton />;
+
+  if (!indicators || indicators.length === 0) {
+    return (
+      <>
+        <PageToolbar title="Metas e Resultados" subtitle={`Lançamento manual — ${periodLabel}`} />
+        <DashboardEmptyState
+          isAdmin={isAdmin}
+          adminTitle="Nenhum indicador cadastrado"
+          adminDescription="Cadastre indicadores para lançar metas e resultados."
+        />
+      </>
+    );
+  }
 
   const perspColor = new Map(perspectives?.map((p) => [p.id, p.color || "#1e3a5f"]) ?? []);
   const ruleById = new Map<number, CalibrationRuleDef & { name: string }>(
@@ -196,12 +212,15 @@ export default function Lancamentos() {
                     const result = parseNum(d.result);
                     const rule = ind.calibrationRuleId ? ruleById.get(ind.calibrationRuleId) : undefined;
                     const score = rule
-                      ? computeScoreWithRule(rule, goal, result)
+                      ? computeScoreWithRule(rule, goal, result, ind.direction)
                       : computeScore(ind.scaleType as ScaleType, goal, result);
                     return (
                       <tr key={ind.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                         <td className="py-1.5 pr-2">
-                          <p className="font-medium">{ind.name}</p>
+                          <p className="font-medium flex items-center gap-1.5">
+                            <DirectionIcon direction={ind.direction} />
+                            {ind.name}
+                          </p>
                           <p className="text-[11px] text-muted-foreground">{ind.unit === "percent" ? "Percentual" : ind.unit === "currency" ? "R$" : "Número"}</p>
                         </td>
                         <td className="py-1.5 px-2">

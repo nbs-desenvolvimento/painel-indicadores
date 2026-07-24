@@ -101,6 +101,17 @@ export function computeScore(
   }
 }
 
+/* ------------------------- Sentido do indicador ---------------------------- */
+
+export const DIRECTIONS = ["higher_better", "lower_better"] as const;
+
+export type Direction = (typeof DIRECTIONS)[number];
+
+export const DIRECTION_LABELS: Record<Direction, string> = {
+  higher_better: "Aumentar é positivo",
+  lower_better: "Reduzir é positivo",
+};
+
 /* ------------------- Regras de calibragem configuráveis ------------------- */
 
 export interface CalibrationRange {
@@ -122,9 +133,12 @@ export interface CalibrationRuleDef {
 
 /**
  * Calcula o score de um indicador usando uma regra de calibragem configurável.
- * O atingimento é A = resultado / meta. As faixas são avaliadas na ordem
- * (sortOrder) e a primeira que casar define o score. Com directConversion,
- * o score é o próprio atingimento.
+ * O atingimento é A = resultado / meta quando direction = "higher_better" (padrão),
+ * ou A = meta / resultado quando direction = "lower_better" — a inversão faz com
+ * que a mesma régua de faixas (pensada para "maior é melhor") sirva também para
+ * indicadores cujo objetivo é reduzir o resultado. As faixas são avaliadas na
+ * ordem (sortOrder) e a primeira que casar define o score. Com directConversion,
+ * o score é o próprio atingimento (já invertido, se for o caso).
  * Usa a mesma tolerância de ponto flutuante do computeScore (compatível com Excel).
  * Retorna null quando meta ou resultado não estão lançados ou meta = 0.
  */
@@ -132,12 +146,17 @@ export function computeScoreWithRule(
   rule: CalibrationRuleDef,
   goal: number | null | undefined,
   result: number | null | undefined,
+  direction: Direction = "higher_better",
 ): number | null {
   if (goal === null || goal === undefined || result === null || result === undefined) {
     return null;
   }
   if (goal === 0) return null;
-  const attainment = result / goal;
+  // direction = "lower_better": reduzir o resultado (bom) deve gerar atingimento
+  // ALTO, e aumentar o resultado (ruim) deve gerar atingimento BAIXO — por isso
+  // a razão é invertida (meta/resultado). Resultado = 0 gera Infinity, que casa
+  // naturalmente com a faixa aberta mais alta da regra (a melhor faixa possível).
+  const attainment = direction === "lower_better" ? goal / result : result / goal;
   if (rule.directConversion) return attainment;
 
   const EPS = 1e-9;
@@ -166,6 +185,8 @@ export interface IndicatorInput {
   scaleType: ScaleType;
   /** Regra de calibragem do indicador; quando presente, tem precedência sobre scaleType */
   calibrationRule?: CalibrationRuleDef | null;
+  /** Sentido do indicador (aumentar ou reduzir é positivo); só usado com calibrationRule */
+  direction?: Direction;
   goal: number | null;
   result: number | null;
 }
@@ -213,7 +234,7 @@ export function computeAreaScore(
       indicatorId: i.id,
       name: i.name,
       score: i.calibrationRule
-        ? computeScoreWithRule(i.calibrationRule, i.goal, i.result)
+        ? computeScoreWithRule(i.calibrationRule, i.goal, i.result, i.direction)
         : computeScore(i.scaleType, i.goal, i.result),
     }));
     const valid = indicatorScores.filter((s) => s.score !== null) as {

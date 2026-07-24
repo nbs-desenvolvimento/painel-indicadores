@@ -1,4 +1,4 @@
-import { EmptyState, PageSkeleton, PageToolbar, ScoreBadge } from "@/components/shared";
+import { DashboardEmptyState, PageSkeleton, PageToolbar, ScoreBadge } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fmtScore, fmtValue, scoreColor, useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
 import { useEffect, useState } from "react";
 import {
@@ -24,6 +25,8 @@ import {
 
 export default function DashboardPerspectivas() {
   const { companyId, year, month, periodLabel } = useApp();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [perspectiveId, setPerspectiveId] = useState<number | null>(null);
 
   const { data: snap, isLoading } = useDashboardSnapshot(
@@ -39,11 +42,15 @@ export default function DashboardPerspectivas() {
 
   if (isLoading || !companyId) return <PageSkeleton />;
 
-  if (!snap || snap.perspectives.length === 0) {
+  if (!snap || snap.perspectives.length === 0 || snap.areas.length === 0) {
     return (
       <>
         <PageToolbar title="Dashboard por Perspectiva" subtitle={periodLabel} />
-        <EmptyState title="Nenhuma perspectiva cadastrada" description="Cadastre perspectivas para visualizar este dashboard." />
+        <DashboardEmptyState
+          isAdmin={isAdmin}
+          adminTitle="Nenhuma perspectiva ou área cadastrada"
+          adminDescription="Cadastre perspectivas e áreas para visualizar este dashboard."
+        />
       </>
     );
   }

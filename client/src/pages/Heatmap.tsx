@@ -1,11 +1,14 @@
-import { EmptyState, PageSkeleton, PageToolbar } from "@/components/shared";
+import { DashboardEmptyState, PageSkeleton, PageToolbar } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { fmtScore, scoreBg, useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
 
 export default function Heatmap() {
   const { companyId, year, month, periodLabel } = useApp();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const { data: snap, isLoading } = useDashboardSnapshot(
     { companyId: companyId ?? 0, year, month },
     { enabled: !!companyId },
@@ -17,7 +20,11 @@ export default function Heatmap() {
     return (
       <>
         <PageToolbar title="Heatmap" subtitle={periodLabel} />
-        <EmptyState title="Sem dados para exibir" description="Cadastre indicadores e áreas para gerar o heatmap." />
+        <DashboardEmptyState
+          isAdmin={isAdmin}
+          adminTitle="Sem dados para exibir"
+          adminDescription="Cadastre indicadores e áreas para gerar o heatmap."
+        />
       </>
     );
   }

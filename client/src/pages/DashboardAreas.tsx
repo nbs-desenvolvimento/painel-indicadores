@@ -1,4 +1,4 @@
-import { EmptyState, PageSkeleton, PageToolbar, ScoreBadge, ScoreGauge } from "@/components/shared";
+import { DashboardEmptyState, PageSkeleton, PageToolbar, ScoreBadge, ScoreGauge } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -8,12 +8,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fmtScore, fmtValue, scoreColor, useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "wouter";
 
 export default function DashboardAreas() {
   const { companyId, year, month, periodLabel } = useApp();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [searchParams] = useSearchParams();
   const urlArea = searchParams.get("area");
   const [areaId, setAreaId] = useState<number | null>(urlArea ? parseInt(urlArea) : null);
@@ -40,7 +43,11 @@ export default function DashboardAreas() {
     return (
       <>
         <PageToolbar title="Dashboard por Área" subtitle={periodLabel} />
-        <EmptyState title="Nenhuma área cadastrada" description="Cadastre áreas para visualizar este dashboard." />
+        <DashboardEmptyState
+          isAdmin={isAdmin}
+          adminTitle="Nenhuma área cadastrada"
+          adminDescription="Cadastre áreas para visualizar este dashboard."
+        />
       </>
     );
   }

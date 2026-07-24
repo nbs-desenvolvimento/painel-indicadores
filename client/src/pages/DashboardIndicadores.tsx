@@ -1,4 +1,4 @@
-import { EmptyState, PageSkeleton, PageToolbar, ScoreBadge, ScoreGauge } from "@/components/shared";
+import { DashboardEmptyState, PageSkeleton, PageToolbar, ScoreBadge, ScoreGauge } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MONTH_NAMES_SHORT, fmtValue, useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useDashboardHistory, useDashboardSnapshot } from "@/lib/apiHooks";
 import { SCALE_TYPE_LABELS } from "@/lib/calcEngine";
 import { useEffect, useMemo, useState } from "react";
@@ -39,6 +40,8 @@ function buildLast12Periods(year: number, month: number) {
 
 export default function DashboardIndicadores() {
   const { companyId, year, month, periodLabel } = useApp();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [indicatorId, setIndicatorId] = useState<number | null>(null);
 
   const { data: snap, isLoading } = useDashboardSnapshot(
@@ -64,7 +67,11 @@ export default function DashboardIndicadores() {
     return (
       <>
         <PageToolbar title="Dashboard por Indicador" subtitle={periodLabel} />
-        <EmptyState title="Nenhum indicador cadastrado" description="Cadastre indicadores para visualizar este dashboard." />
+        <DashboardEmptyState
+          isAdmin={isAdmin}
+          adminTitle="Nenhum indicador cadastrado"
+          adminDescription="Cadastre indicadores para visualizar este dashboard."
+        />
       </>
     );
   }

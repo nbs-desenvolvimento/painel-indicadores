@@ -62,6 +62,10 @@ export async function authenticateRequest(req: Request): Promise<User> {
   if (!user) {
     throw ForbiddenError("User not found");
   }
+  if (!user.active) {
+    // Derruba a sessão imediatamente ao ser desativado, sem esperar o token (até 7 dias) expirar.
+    throw ForbiddenError("User is inactive");
+  }
 
   return user;
 }

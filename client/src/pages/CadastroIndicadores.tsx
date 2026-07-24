@@ -1,4 +1,4 @@
-import { PageSkeleton } from "@/components/shared";
+import { DirectionIcon, PageSkeleton } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -32,8 +32,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useApp } from "@/contexts/AppContext";
 import type { Area, CalibrationRule, Indicator, IndicatorAreaApplicability, Objective, Perspective } from "@/lib/apiTypes";
 import { trpcApi } from "@/lib/trpcApi";
-import { SCALE_TYPE_LABELS, type ScaleType } from "@/lib/calcEngine";
-import { Check, Pencil, Plus, Trash2 } from "lucide-react";
+import { DIRECTION_LABELS, DIRECTIONS, SCALE_TYPE_LABELS, type Direction, type ScaleType } from "@/lib/calcEngine";
+import { ArrowDown, ArrowUp, Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -66,6 +66,7 @@ interface IndicatorsApi {
           description?: string;
           perspectiveId: number;
           scaleType: ScaleType;
+          direction: Direction;
           objectiveId: number | null;
           calibrationRuleId: number;
           defaultGoal: number | null;
@@ -85,6 +86,7 @@ interface IndicatorsApi {
         description?: string;
         perspectiveId?: number;
         scaleType?: ScaleType;
+        direction?: Direction;
         objectiveId?: number | null;
         calibrationRuleId?: number;
         defaultGoal?: number | null;
@@ -130,6 +132,7 @@ interface EditState {
   description: string;
   perspectiveId: string;
   scaleType: ScaleType;
+  direction: Direction;
   objectiveId: string;
   calibrationRuleId: string;
   defaultGoal: string;
@@ -168,6 +171,7 @@ export default function CadastroIndicadores() {
     description: "",
     perspectiveId: "",
     scaleType: "higher_better_120",
+    direction: "higher_better",
     objectiveId: NONE,
     calibrationRuleId: NONE,
     defaultGoal: "",
@@ -283,6 +287,7 @@ export default function CadastroIndicadores() {
       description: editing.description.trim() || undefined,
       perspectiveId: parseInt(editing.perspectiveId),
       scaleType: editing.scaleType,
+      direction: editing.direction,
       objectiveId: editing.objectiveId === NONE ? null : parseInt(editing.objectiveId),
       calibrationRuleId: parseInt(editing.calibrationRuleId),
       defaultGoal: defaultGoalNum,
@@ -357,6 +362,7 @@ export default function CadastroIndicadores() {
                     description: "",
                     perspectiveId: perspectives?.[0] ? String(perspectives[0].id) : "",
                     scaleType: "higher_better_120",
+                    direction: "higher_better",
                     objectiveId: NONE,
                     calibrationRuleId: rules?.[0] ? String(rules[0].id) : NONE,
                     defaultGoal: "",
@@ -467,6 +473,35 @@ export default function CadastroIndicadores() {
                   <p className="text-xs text-muted-foreground pt-1">
                     Converte o atingimento (Resultado ÷ Meta) em score conforme as faixas configuradas em “Regras
                     de Calibragem”.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Sentido do indicador</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {DIRECTIONS.map((d) => {
+                      const Icon = d === "lower_better" ? ArrowDown : ArrowUp;
+                      const selected = editing.direction === d;
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setEditing((p) => ({ ...p, direction: d }))}
+                          className={`h-10 rounded-md px-3 text-sm font-medium flex items-center justify-center gap-2 transition-all border ${
+                            selected
+                              ? "text-white border-transparent shadow-sm"
+                              : "bg-muted/50 border-border/40 text-muted-foreground hover:bg-muted"
+                          }`}
+                          style={selected ? { backgroundColor: d === "lower_better" ? "#2563eb" : "#15803d" } : undefined}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
+                          {DIRECTION_LABELS[d]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Indica se um resultado maior ou menor que a meta representa uma melhora. Indicadores de
+                    redução (ex.: custos, atrasos, acidentes) devem usar “Reduzir é positivo”.
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -583,7 +618,10 @@ export default function CadastroIndicadores() {
               {shown.map((i) => (
                 <tr key={i.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="py-2.5 pr-2">
-                    <p className="font-medium">{i.name}</p>
+                    <p className="font-medium flex items-center gap-1.5">
+                      <DirectionIcon direction={i.direction} />
+                      {i.name}
+                    </p>
                     {i.description && <p className="text-xs text-muted-foreground truncate max-w-md">{i.description}</p>}
                   </td>
                   <td className="py-2.5 px-2">
@@ -629,6 +667,7 @@ export default function CadastroIndicadores() {
                           description: i.description || "",
                           perspectiveId: String(i.perspectiveId),
                           scaleType: i.scaleType as ScaleType,
+                          direction: i.direction,
                           objectiveId: i.objectiveId ? String(i.objectiveId) : NONE,
                           calibrationRuleId: i.calibrationRuleId ? String(i.calibrationRuleId) : NONE,
                           defaultGoal: i.defaultGoal !== null && i.defaultGoal !== undefined ? String(i.defaultGoal) : "",

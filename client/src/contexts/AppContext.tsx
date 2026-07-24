@@ -1,4 +1,5 @@
 import type { Company } from "@/lib/apiTypes";
+import { useAuth } from "@/hooks/useAuth";
 import { trpcApi } from "@/lib/trpcApi";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
@@ -27,7 +28,11 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const { data: companies, isLoading: companiesLoading } = trpcApi.companies.list.useQuery() as {
+  const { isAuthenticated } = useAuth();
+  const { data: companies, isLoading: companiesLoading } = trpcApi.companies.list.useQuery(
+    undefined,
+    { enabled: isAuthenticated },
+  ) as {
     data: Company[] | undefined;
     isLoading: boolean;
   };

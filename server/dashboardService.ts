@@ -4,6 +4,7 @@ import {
   computeScoreWithRule,
   type AreaScore,
   type CalibrationRuleDef,
+  type Direction,
   type IndicatorInput,
   type ScaleType,
 } from "./calcEngine";
@@ -34,13 +35,13 @@ async function buildRuleMaps(companyId: number) {
 
 /** Calcula o score do indicador: regra de calibragem quando vinculada, senão escala legada */
 function scoreOf(
-  ind: { scaleType: string; calibrationRuleId: number | null },
+  ind: { scaleType: string; calibrationRuleId: number | null; direction: string },
   ruleMap: Map<number, CalibrationRuleDef>,
   goal: number | null,
   result: number | null,
 ) {
   const rule = ind.calibrationRuleId ? ruleMap.get(ind.calibrationRuleId) : undefined;
-  if (rule) return computeScoreWithRule(rule, goal, result);
+  if (rule) return computeScoreWithRule(rule, goal, result, ind.direction as Direction);
   return computeScore(ind.scaleType as ScaleType, goal, result);
 }
 
@@ -52,8 +53,16 @@ export interface PeriodRef {
 /**
  * Monta o snapshot completo de desempenho de uma empresa em um período:
  * scores de todas as áreas, perspectivas e indicadores.
+ *
+ * `allowedAreaIds`: null = sem restrição (admin). Array = usuário comum,
+ * restringe áreas/indicadores/lançamentos ao que foi liberado para ele.
  */
-export async function buildCompanySnapshot(companyId: number, year: number, month: number) {
+export async function buildCompanySnapshot(
+  companyId: number,
+  year: number,
+  month: number,
+  allowedAreaIds: number[] | null = null,
+) {
   const [areasList, perspectivesList, indicatorsList, ruleMaps] = await Promise.all([
     db.listAreas(companyId),
     db.listPerspectives(companyId),
@@ -62,7 +71,11 @@ export async function buildCompanySnapshot(companyId: number, year: number, mont
   ]);
   const { defMap: ruleMap, nameMap: ruleNameMap } = ruleMaps;
 
-  const activeAreas = areasList.filter((a) => a.active);
+  let activeAreas = areasList.filter((a) => a.active);
+  if (allowedAreaIds !== null) {
+    const allowedSet = new Set(allowedAreaIds);
+    activeAreas = activeAreas.filter((a) => allowedSet.has(a.id));
+  }
   const activePerspectives = perspectivesList.filter((p) => p.active);
   const activeIndicators = indicatorsList.filter((i) => i.active);
   const indicatorIds = activeIndicators.map((i) => i.id);
@@ -97,6 +110,7 @@ export async function buildCompanySnapshot(companyId: number, year: number, mont
           name: ind.name,
           scaleType: ind.scaleType as ScaleType,
           calibrationRule: ind.calibrationRuleId ? (ruleMap.get(ind.calibrationRuleId) ?? null) : null,
+          direction: ind.direction as Direction,
           goal: entry?.goal ?? null,
           result: entry?.result ?? null,
         };
@@ -106,8 +120,18 @@ export async function buildCompanySnapshot(companyId: number, year: number, mont
     return { ...score, areaName: area.name };
   });
 
+  // Indicadores visíveis: aplicáveis a pelo menos uma área permitida (todos, se admin)
+  const visibleIndicatorIds = new Set(
+    allowedAreaIds === null
+      ? indicatorIds
+      : activeIndicators
+          .filter((ind) => activeAreas.some((area) => applMap.get(`${ind.id}:${area.id}`) === true))
+          .map((ind) => ind.id),
+  );
+  const visibleIndicators = activeIndicators.filter((ind) => visibleIndicatorIds.has(ind.id));
+
   // Indicator-level detail (independent of area)
-  const indicatorScores = activeIndicators.map((ind) => {
+  const indicatorScores = visibleIndicators.map((ind) => {
     const entry = entryMap.get(ind.id);
     return {
       indicatorId: ind.id,
@@ -127,19 +151,22 @@ export async function buildCompanySnapshot(companyId: number, year: number, mont
     month,
     areas: activeAreas,
     perspectives: activePerspectives,
-    indicators: activeIndicators,
+    indicators: visibleIndicators,
     areaScores,
     indicatorScores,
     weights,
-    applicability,
-    entries,
+    applicability: applicability.filter((a) => visibleIndicatorIds.has(a.indicatorId)),
+    entries: entries.filter((e) => visibleIndicatorIds.has(e.indicatorId)),
   };
 }
 
 /**
  * Série histórica: calcula o snapshot de vários períodos para gráficos de evolução.
+ *
+ * `allowedAreaIds`: null = sem restrição (admin). Array = usuário comum,
+ * restringe áreas/indicadores ao que foi liberado para ele.
  */
-export async function buildHistory(companyId: number, periods: PeriodRef[]) {
+export async function buildHistory(companyId: number, periods: PeriodRef[], allowedAreaIds: number[] | null = null) {
   const [areasList, perspectivesList, indicatorsList, ruleMaps] = await Promise.all([
     db.listAreas(companyId),
     db.listPerspectives(companyId),
@@ -147,7 +174,11 @@ export async function buildHistory(companyId: number, periods: PeriodRef[]) {
     buildRuleMaps(companyId),
   ]);
   const ruleMap = ruleMaps.defMap;
-  const activeAreas = areasList.filter((a) => a.active);
+  let activeAreas = areasList.filter((a) => a.active);
+  if (allowedAreaIds !== null) {
+    const allowedSet = new Set(allowedAreaIds);
+    activeAreas = activeAreas.filter((a) => allowedSet.has(a.id));
+  }
   const activePerspectives = perspectivesList.filter((p) => p.active);
   const activeIndicators = indicatorsList.filter((i) => i.active);
   const indicatorIds = activeIndicators.map((i) => i.id);
@@ -169,6 +200,16 @@ export async function buildHistory(companyId: number, periods: PeriodRef[]) {
   }
   const perspectiveIds = activePerspectives.map((p) => p.id);
 
+  // Indicadores visíveis: aplicáveis a pelo menos uma área permitida (todos, se admin)
+  const visibleIndicatorIds = new Set(
+    allowedAreaIds === null
+      ? indicatorIds
+      : activeIndicators
+          .filter((ind) => activeAreas.some((area) => applMap.get(`${ind.id}:${area.id}`) === true))
+          .map((ind) => ind.id),
+  );
+  const visibleIndicators = activeIndicators.filter((ind) => visibleIndicatorIds.has(ind.id));
+
   const result = periods.map(({ year, month }) => {
     const entryMap = new Map(
       allEntries.filter((e) => e.year === year && e.month === month).map((e) => [e.indicatorId, e]),
@@ -185,6 +226,7 @@ export async function buildHistory(companyId: number, periods: PeriodRef[]) {
             name: ind.name,
             scaleType: ind.scaleType as ScaleType,
             calibrationRule: ind.calibrationRuleId ? (ruleMap.get(ind.calibrationRuleId) ?? null) : null,
+            direction: ind.direction as Direction,
             goal: entry?.goal ?? null,
             result: entry?.result ?? null,
           };
@@ -194,7 +236,7 @@ export async function buildHistory(companyId: number, periods: PeriodRef[]) {
       return { areaId: area.id, areaName: area.name, total: score.total, perspectives: score.perspectives };
     });
 
-    const indicatorScores = activeIndicators.map((ind) => {
+    const indicatorScores = visibleIndicators.map((ind) => {
       const entry = entryMap.get(ind.id);
       return {
         indicatorId: ind.id,
@@ -213,6 +255,6 @@ export async function buildHistory(companyId: number, periods: PeriodRef[]) {
     periods: result,
     areas: activeAreas,
     perspectives: activePerspectives,
-    indicators: activeIndicators,
+    indicators: visibleIndicators,
   };
 }

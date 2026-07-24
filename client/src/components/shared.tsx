@@ -9,7 +9,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { downloadAuthedFile } from "@/lib/downloadFile";
-import { Download, FileSpreadsheet, Printer } from "lucide-react";
+import { DIRECTION_LABELS, type Direction } from "@/lib/calcEngine";
+import { ArrowDown, ArrowUp, Download, FileSpreadsheet, Printer } from "lucide-react";
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 
@@ -164,6 +165,21 @@ export function ScoreGauge({
   );
 }
 
+/** Setinha indicando o sentido do indicador: ↑ aumentar é positivo, ↓ reduzir é positivo */
+export function DirectionIcon({ direction, className = "" }: { direction: Direction; className?: string }) {
+  const Icon = direction === "lower_better" ? ArrowDown : ArrowUp;
+  const color = direction === "lower_better" ? "#2563eb" : "#15803d";
+  return (
+    <Icon
+      className={`h-3.5 w-3.5 shrink-0 ${className}`}
+      style={{ color }}
+      aria-label={DIRECTION_LABELS[direction]}
+    >
+      <title>{DIRECTION_LABELS[direction]}</title>
+    </Icon>
+  );
+}
+
 /** Estado vazio elegante */
 export function EmptyState({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
@@ -173,6 +189,29 @@ export function EmptyState({ title, description, action }: { title: string; desc
       {description && <p className="text-sm text-muted-foreground mt-1 max-w-md">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
+  );
+}
+
+/**
+ * Estado vazio de dashboard/lançamento ciente do motivo: para admin, mostra a
+ * orientação de cadastro de sempre; para usuário comum, explica que a lista
+ * vazia é porque nenhuma área foi liberada para ele (não é um bug).
+ */
+export function DashboardEmptyState({
+  isAdmin,
+  adminTitle,
+  adminDescription,
+}: {
+  isAdmin: boolean;
+  adminTitle: string;
+  adminDescription: string;
+}) {
+  if (isAdmin) return <EmptyState title={adminTitle} description={adminDescription} />;
+  return (
+    <EmptyState
+      title="Nenhuma área liberada"
+      description="Nenhuma área foi liberada para o seu usuário. Contate o administrador."
+    />
   );
 }
 

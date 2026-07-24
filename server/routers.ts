@@ -1,8 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { SCALE_TYPES } from "./calcEngine";
+import { DIRECTIONS, SCALE_TYPES } from "./calcEngine";
 import { signAuthToken } from "./_core/auth";
+import type { TrpcContext } from "./_core/context";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { buildCompanySnapshot, buildHistory } from "./dashboardService";
@@ -16,13 +17,21 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+/** null = sem restrição (admin). [] = usuário restrito sem nenhuma área liberada. */
+async function scopedAreaIds(ctx: TrpcContext): Promise<number[] | null> {
+  if (ctx.user!.role === "admin") return null;
+  return db.getUserAreaIds(ctx.user!.id);
+}
+
 const BCRYPT_ROUNDS = 10;
 // Comparado quando o email não existe, para que o tempo de resposta não denuncie
 // se a falha foi por email ou por senha (bcrypt.compare sempre roda de qualquer jeito).
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync("no-such-user", BCRYPT_ROUNDS);
 const INVALID_CREDENTIALS_MSG = "Email ou senha inválidos";
+const USER_INACTIVE_MSG = "Usuário desativado. Fale com o administrador.";
 
 const scaleTypeSchema = z.enum(SCALE_TYPES);
+const directionSchema = z.enum(DIRECTIONS);
 const rangeSchema = z.object({
   minAttainment: z.number().nullable(),
   minInclusive: z.boolean(),
@@ -49,6 +58,9 @@ export const appRouter = router({
         if (!user || !passwordMatches) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: INVALID_CREDENTIALS_MSG });
         }
+        if (!user.active) {
+          throw new TRPCError({ code: "FORBIDDEN", message: USER_INACTIVE_MSG });
+        }
 
         await db.updateLastSignedIn(user.id);
         const token = await signAuthToken(user.id);
@@ -65,6 +77,7 @@ export const appRouter = router({
           name: z.string().optional(),
           password: z.string().min(8, "A senha deve ter ao menos 8 caracteres"),
           role: z.enum(["user", "admin"]).default("user"),
+          areaIds: z.array(z.number()).optional(),
         }),
       )
       .mutation(async ({ input }) => {
@@ -78,9 +91,47 @@ export const appRouter = router({
           name: input.name ?? null,
           passwordHash,
           role: input.role,
+          areaIds: input.areaIds,
         });
         return { id };
       }),
+    update: adminProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().optional(),
+          email: z.string().email().optional(),
+          role: z.enum(["user", "admin"]).optional(),
+          active: z.boolean().optional(),
+          areaIds: z.array(z.number()).optional(),
+        }),
+      )
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...data } = input;
+        if (id === ctx.user.id) {
+          if (data.active === false) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Você não pode desativar sua própria conta" });
+          }
+          if (data.role && data.role !== "admin") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Você não pode remover seu próprio acesso de administrador" });
+          }
+        }
+        if (data.email) {
+          const existing = await db.getUserByEmail(data.email);
+          if (existing && existing.id !== id) {
+            throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este email" });
+          }
+        }
+        await db.updateUser(id, data);
+        return { success: true } as const;
+      }),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      if (input.id === ctx.user.id) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Você não pode excluir sua própria conta" });
+      }
+      await db.deleteUser(input.id);
+      return { success: true } as const;
+    }),
     resetPassword: adminProcedure
       .input(z.object({ userId: z.number(), newPassword: z.string().min(8, "A senha deve ter ao menos 8 caracteres") }))
       .mutation(async ({ input }) => {
@@ -120,7 +171,13 @@ export const appRouter = router({
   areas: router({
     list: protectedProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(({ input }) => db.listAreas(input?.companyId)),
+      .query(async ({ input, ctx }) => {
+        const all = await db.listAreas(input?.companyId);
+        const allowed = await scopedAreaIds(ctx);
+        if (allowed === null) return all;
+        const allowedSet = new Set(allowed);
+        return all.filter((a) => allowedSet.has(a.id));
+      }),
     create: adminProcedure
       .input(z.object({ companyId: z.number(), name: z.string().min(1), description: z.string().optional(), parentAreaId: z.number().nullable().optional(), sortOrder: z.number().optional() }))
       .mutation(async ({ input }) => ({ id: await db.createArea(input) })),
@@ -177,7 +234,13 @@ export const appRouter = router({
   indicators: router({
     list: protectedProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(({ input }) => db.listIndicators(input?.companyId)),
+      .query(async ({ input, ctx }) => {
+        const all = await db.listIndicators(input?.companyId);
+        const allowedAreaIds = await scopedAreaIds(ctx);
+        if (allowedAreaIds === null) return all;
+        const allowedIndicatorIds = new Set(await db.getIndicatorIdsForAreas(allowedAreaIds));
+        return all.filter((i) => allowedIndicatorIds.has(i.id));
+      }),
     create: adminProcedure
       .input(
         z.object({
@@ -187,6 +250,7 @@ export const appRouter = router({
           description: z.string().optional(),
           unit: z.string().optional(),
           scaleType: scaleTypeSchema,
+          direction: directionSchema,
           objectiveId: z.number().nullable().optional(),
           calibrationRuleId: z.number().nullable().optional(),
           defaultGoal: z.number().nullable().optional(),
@@ -203,6 +267,7 @@ export const appRouter = router({
           description: z.string().nullable().optional(),
           unit: z.string().optional(),
           scaleType: scaleTypeSchema.optional(),
+          direction: directionSchema.optional(),
           objectiveId: z.number().nullable().optional(),
           calibrationRuleId: z.number().nullable().optional(),
           defaultGoal: z.number().nullable().optional(),
@@ -308,7 +373,7 @@ export const appRouter = router({
   }),
 
   applicability: router({
-    list: protectedProcedure
+    list: adminProcedure
       .input(z.object({ indicatorIds: z.array(z.number()) }))
       .query(({ input }) => db.listApplicability(input.indicatorIds)),
     set: adminProcedure
@@ -328,7 +393,15 @@ export const appRouter = router({
   entries: router({
     list: protectedProcedure
       .input(z.object({ indicatorIds: z.array(z.number()), year: z.number().optional(), month: z.number().optional() }))
-      .query(({ input }) => db.listEntries(input.indicatorIds, input.year, input.month)),
+      .query(async ({ input, ctx }) => {
+        const allowedAreaIds = await scopedAreaIds(ctx);
+        let indicatorIds = input.indicatorIds;
+        if (allowedAreaIds !== null) {
+          const allowedIndicatorIds = new Set(await db.getIndicatorIdsForAreas(allowedAreaIds));
+          indicatorIds = indicatorIds.filter((id) => allowedIndicatorIds.has(id));
+        }
+        return db.listEntries(indicatorIds, input.year, input.month);
+      }),
     upsert: protectedProcedure
       .input(
         z.object({
@@ -340,6 +413,13 @@ export const appRouter = router({
         }),
       )
       .mutation(async ({ input, ctx }) => {
+        const allowedAreaIds = await scopedAreaIds(ctx);
+        if (allowedAreaIds !== null) {
+          const allowedIndicatorIds = await db.getIndicatorIdsForAreas(allowedAreaIds);
+          if (!allowedIndicatorIds.includes(input.indicatorId)) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Este indicador não pertence às suas áreas" });
+          }
+        }
         await db.upsertEntry({ ...input, source: "manual", updatedBy: ctx.user.id });
         return { success: true } as const;
       }),
@@ -374,7 +454,9 @@ export const appRouter = router({
         } catch (e) {
           throw new TRPCError({ code: "BAD_REQUEST", message: e instanceof Error ? e.message : "Falha ao ler o arquivo Excel" });
         }
-        const result = await importEntries(input.companyId, input.year, input.month, rows, ctx.user.id);
+        const allowedAreaIds = await scopedAreaIds(ctx);
+        const allowedIndicatorIds = allowedAreaIds === null ? null : await db.getIndicatorIdsForAreas(allowedAreaIds);
+        const result = await importEntries(input.companyId, input.year, input.month, rows, ctx.user.id, allowedIndicatorIds);
         await db.createImportLog({
           companyId: input.companyId,
           year: input.year,
@@ -393,7 +475,10 @@ export const appRouter = router({
   dashboard: router({
     snapshot: protectedProcedure
       .input(z.object({ companyId: z.number() }).merge(periodSchema))
-      .query(({ input }) => buildCompanySnapshot(input.companyId, input.year, input.month)),
+      .query(async ({ input, ctx }) => {
+        const allowedAreaIds = await scopedAreaIds(ctx);
+        return buildCompanySnapshot(input.companyId, input.year, input.month, allowedAreaIds);
+      }),
     history: protectedProcedure
       .input(
         z.object({
@@ -401,7 +486,10 @@ export const appRouter = router({
           periods: z.array(periodSchema).min(1).max(36),
         }),
       )
-      .query(({ input }) => buildHistory(input.companyId, input.periods)),
+      .query(async ({ input, ctx }) => {
+        const allowedAreaIds = await scopedAreaIds(ctx);
+        return buildHistory(input.companyId, input.periods, allowedAreaIds);
+      }),
   }),
 });
 
