@@ -10,9 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MONTH_NAMES_SHORT, fmtValue, scoreColor, useApp } from "@/contexts/AppContext";
+import { MONTH_NAMES_SHORT, fmtScore, fmtValue, scoreColor, useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardHistory, useDashboardSnapshot } from "@/lib/apiHooks";
+import type { DashboardSnapshot } from "@/lib/apiTypes";
 import { buildLast12Periods } from "@/lib/periods";
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -31,11 +32,13 @@ import {
   YAxis,
 } from "recharts";
 
+const ALL = "all";
+
 export default function DashboardObjetivos() {
   const { companyId, year, month, periodLabel } = useApp();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const [objectiveId, setObjectiveId] = useState<number | null>(null);
+  const [objectiveId, setObjectiveId] = useState<number | typeof ALL | null>(null);
 
   const { data: snap, isLoading } = useDashboardSnapshot(
     { companyId: companyId ?? 0, year, month },
@@ -49,8 +52,13 @@ export default function DashboardObjetivos() {
   );
 
   useEffect(() => {
-    if (snap && snap.objectives.length > 0 && (objectiveId === null || !snap.objectives.some((o) => o.id === objectiveId))) {
-      setObjectiveId(snap.objectives[0].id);
+    if (!snap) return;
+    if (objectiveId === null) {
+      if (snap.objectives.length > 0) setObjectiveId(snap.objectives[0].id);
+      return;
+    }
+    if (typeof objectiveId === "number" && !snap.objectives.some((o) => o.id === objectiveId)) {
+      setObjectiveId(snap.objectives.length > 0 ? snap.objectives[0].id : ALL);
     }
   }, [snap, objectiveId]);
 
@@ -70,7 +78,7 @@ export default function DashboardObjetivos() {
   }
 
   const orderedPerspectives = [...snap.perspectives].sort((a, b) => a.sortOrder - b.sortOrder);
-  const selected = snap.objectives.find((o) => o.id === objectiveId);
+  const selected = typeof objectiveId === "number" ? snap.objectives.find((o) => o.id === objectiveId) : undefined;
   const selectedPersp = snap.perspectives.find((p) => p.id === selected?.perspectiveId);
 
   const objIndicators = snap.indicators.filter((i) => i.objectiveId === objectiveId);
@@ -108,11 +116,15 @@ export default function DashboardObjetivos() {
   return (
     <div className="fade-up">
       <PageToolbar title="Dashboard por Objetivo" subtitle={`Análise por objetivo estratégico — ${periodLabel}`} showExport>
-        <Select value={objectiveId ? String(objectiveId) : undefined} onValueChange={(v) => setObjectiveId(parseInt(v))}>
+        <Select
+          value={objectiveId === ALL ? ALL : objectiveId ? String(objectiveId) : undefined}
+          onValueChange={(v) => setObjectiveId(v === ALL ? ALL : parseInt(v))}
+        >
           <SelectTrigger className="w-[280px] bg-card">
             <SelectValue placeholder="Selecione o objetivo" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value={ALL}>Todos os objetivos</SelectItem>
             {orderedPerspectives.map((p) => {
               const objs = snap.objectives.filter((o) => o.perspectiveId === p.id).sort((a, b) => a.sortOrder - b.sortOrder);
               if (objs.length === 0) return null;
@@ -147,7 +159,9 @@ export default function DashboardObjetivos() {
         </Alert>
       )}
 
-      {selected && (
+      {objectiveId === ALL && <ObjectiveGroupView snap={snap} onSelectObjective={setObjectiveId} />}
+
+      {objectiveId !== ALL && selected && (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
             <Card className="card-elegant border-0 lg:col-span-2">
@@ -311,5 +325,145 @@ export default function DashboardObjetivos() {
         </>
       )}
     </div>
+  );
+}
+
+function ObjectiveGroupView({
+  snap,
+  onSelectObjective,
+}: {
+  snap: DashboardSnapshot;
+  onSelectObjective: (id: number) => void;
+}) {
+  const perspColor = new Map(snap.perspectives.map((p) => [p.id, p.color || "#1e3a5f"]));
+  const perspName = new Map(snap.perspectives.map((p) => [p.id, p.name]));
+  const orderedPerspectives = [...snap.perspectives].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const rows = orderedPerspectives.flatMap((p) =>
+    snap.objectives
+      .filter((o) => o.perspectiveId === p.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((o) => {
+        const score = snap.objectiveScores.find((x) => x.objectiveId === o.id);
+        const indCount = snap.indicators.filter((i) => i.objectiveId === o.id).length;
+        return { objective: o, average: score?.average ?? null, indCount };
+      }),
+  );
+
+  const barData = rows
+    .filter((r) => r.average !== null)
+    .map((r) => ({ name: r.objective.name, average: Math.round((r.average ?? 0) * 1000) / 10 }))
+    .sort((a, b) => b.average - a.average);
+
+  return (
+    <>
+      <Card className="card-elegant border-0 mb-6">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg font-serif">Todos os objetivos</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Comparação de desempenho entre os {snap.objectives.length} objetivos estratégicos.
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {rows.map(({ objective, average }) => (
+          <Card
+            key={objective.id}
+            className="card-elegant border-0 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => onSelectObjective(objective.id)}
+          >
+            <CardHeader className="pb-2">
+              <div className="h-1 w-8 rounded-full mb-2" style={{ backgroundColor: perspColor.get(objective.perspectiveId) }} />
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide leading-tight min-h-8">
+                {objective.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="kpi-number text-2xl font-bold" style={{ color: scoreColor(average) }}>
+                {fmtScore(average)}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-1 truncate">{perspName.get(objective.perspectiveId)}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="card-elegant border-0">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+              Score por objetivo
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {barData.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">Nenhum objetivo apurado no período.</p>
+            ) : (
+              <div style={{ height: Math.max(280, barData.length * 32) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barData} layout="vertical" margin={{ left: 30, right: 40, top: 8, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="oklch(0.92 0.008 90)" />
+                    <XAxis type="number" domain={[0, 120]} tickFormatter={(v) => `${v}%`} fontSize={12} />
+                    <YAxis type="category" dataKey="name" width={150} fontSize={11} />
+                    <Tooltip formatter={(v: number) => [`${v.toLocaleString("pt-BR")}%`, "Score"]} />
+                    <ReferenceLine x={100} stroke="#15803d" strokeDasharray="4 4" />
+                    <Bar dataKey="average" radius={[0, 6, 6, 0]} barSize={18}>
+                      {barData.map((d, i) => (
+                        <Cell key={i} fill={scoreColor(d.average / 100)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="card-elegant border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+              Objetivos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-muted-foreground text-xs uppercase tracking-wide">
+                  <th className="text-left py-2 pr-2 font-medium">Objetivo</th>
+                  <th className="text-left py-2 px-2 font-medium">Perspectiva</th>
+                  <th className="text-center py-2 px-2 font-medium">Indicadores</th>
+                  <th className="text-center py-2 pl-2 font-medium">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ objective, average, indCount }) => (
+                  <tr
+                    key={objective.id}
+                    className="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                    onClick={() => onSelectObjective(objective.id)}
+                  >
+                    <td className="py-2 pr-2 font-medium">{objective.name}</td>
+                    <td className="py-2 px-2 text-xs">
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: perspColor.get(objective.perspectiveId) }}
+                        />
+                        <span className="text-muted-foreground">{perspName.get(objective.perspectiveId)}</span>
+                      </span>
+                    </td>
+                    <td className="py-2 px-2 text-center kpi-number">{indCount}</td>
+                    <td className="py-2 pl-2 text-center">
+                      <ScoreBadge score={average} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }
