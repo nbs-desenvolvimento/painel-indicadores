@@ -59,8 +59,8 @@ export default function DashboardIndicadores() {
   useEffect(() => {
     if (!snap) return;
     if (!initialized) {
-      if (snap.indicators.length > 0) {
-        const first = snap.indicators[0];
+      if ((snap.indicators ?? []).length > 0) {
+        const first = (snap.indicators ?? [])[0];
         setIndicatorId(first.id);
         setPerspectiveId(first.perspectiveId);
         setObjectiveFilter(first.objectiveId ?? NO_OBJECTIVE);
@@ -69,21 +69,21 @@ export default function DashboardIndicadores() {
       return;
     }
     // Empresa/período trocou e a seleção atual deixou de existir: recua um nível de cada vez.
-    if (typeof perspectiveId === "number" && !snap.perspectives.some((p) => p.id === perspectiveId)) {
+    if (typeof perspectiveId === "number" && !(snap.perspectives ?? []).some((p) => p.id === perspectiveId)) {
       setPerspectiveId(ALL);
       setObjectiveFilter(ALL);
       setIndicatorId(null);
-    } else if (typeof objectiveFilter === "number" && !snap.objectives.some((o) => o.id === objectiveFilter)) {
+    } else if (typeof objectiveFilter === "number" && !(snap.objectives ?? []).some((o) => o.id === objectiveFilter)) {
       setObjectiveFilter(ALL);
       setIndicatorId(null);
-    } else if (indicatorId !== null && !snap.indicators.some((i) => i.id === indicatorId)) {
+    } else if (indicatorId !== null && !(snap.indicators ?? []).some((i) => i.id === indicatorId)) {
       setIndicatorId(null);
     }
   }, [snap, initialized, perspectiveId, objectiveFilter, indicatorId]);
 
   if (isLoading || !companyId) return <PageSkeleton />;
 
-  if (!snap || snap.indicators.length === 0) {
+  if (!snap || (snap.indicators ?? []).length === 0) {
     return (
       <>
         <PageToolbar title="Dashboard por Indicadores" subtitle={periodLabel} />
@@ -97,9 +97,9 @@ export default function DashboardIndicadores() {
   }
 
   const indicatorsInPerspective =
-    perspectiveId === ALL ? snap.indicators : snap.indicators.filter((i) => i.perspectiveId === perspectiveId);
+    perspectiveId === ALL ? (snap.indicators ?? []) : (snap.indicators ?? []).filter((i) => i.perspectiveId === perspectiveId);
   const objectivesInPerspective =
-    perspectiveId === ALL ? snap.objectives : snap.objectives.filter((o) => o.perspectiveId === perspectiveId);
+    perspectiveId === ALL ? (snap.objectives ?? []) : (snap.objectives ?? []).filter((o) => o.perspectiveId === perspectiveId);
   const hasUnassignedInScope = indicatorsInPerspective.some((i) => i.objectiveId === null);
   const indicatorsInScope =
     objectiveFilter === ALL
@@ -109,7 +109,7 @@ export default function DashboardIndicadores() {
         : indicatorsInPerspective.filter((i) => i.objectiveId === objectiveFilter);
 
   const selectIndicator = (id: number) => {
-    const ind = snap.indicators.find((i) => i.id === id);
+    const ind = (snap.indicators ?? []).find((i) => i.id === id);
     setIndicatorId(id);
     if (ind) {
       setPerspectiveId(ind.perspectiveId);
@@ -118,7 +118,7 @@ export default function DashboardIndicadores() {
   };
 
   const scope = scopeHeader(snap, perspectiveId, objectiveFilter);
-  const selected = indicatorId !== null ? snap.indicators.find((i) => i.id === indicatorId) : undefined;
+  const selected = indicatorId !== null ? (snap.indicators ?? []).find((i) => i.id === indicatorId) : undefined;
 
   return (
     <div className="fade-up">
@@ -140,7 +140,7 @@ export default function DashboardIndicadores() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>Todas as perspectivas</SelectItem>
-            {snap.perspectives.map((p) => (
+            {(snap.perspectives ?? []).map((p) => (
               <SelectItem key={p.id} value={String(p.id)}>
                 {p.name}
               </SelectItem>
@@ -208,19 +208,19 @@ function scopeHeader(
   objectiveFilter: number | typeof ALL | typeof NO_OBJECTIVE,
 ): { title: string; color: string } {
   if (objectiveFilter === NO_OBJECTIVE) {
-    const p = perspectiveId !== ALL ? snap.perspectives.find((x) => x.id === perspectiveId) : undefined;
+    const p = perspectiveId !== ALL ? (snap.perspectives ?? []).find((x) => x.id === perspectiveId) : undefined;
     return {
       title: p ? `Sem objetivo vinculado — ${p.name}` : "Sem objetivo vinculado",
       color: p?.color || "#1e3a5f",
     };
   }
   if (objectiveFilter !== ALL) {
-    const o = snap.objectives.find((x) => x.id === objectiveFilter);
-    const p = snap.perspectives.find((x) => x.id === o?.perspectiveId);
+    const o = (snap.objectives ?? []).find((x) => x.id === objectiveFilter);
+    const p = (snap.perspectives ?? []).find((x) => x.id === o?.perspectiveId);
     return { title: o ? `Objetivo: ${o.name}` : "Objetivo", color: p?.color || "#1e3a5f" };
   }
   if (perspectiveId !== ALL) {
-    const p = snap.perspectives.find((x) => x.id === perspectiveId);
+    const p = (snap.perspectives ?? []).find((x) => x.id === perspectiveId);
     return { title: p ? `Perspectiva: ${p.name}` : "Perspectiva", color: p?.color || "#1e3a5f" };
   }
   return { title: "Todos os indicadores", color: "#1e3a5f" };
@@ -235,19 +235,18 @@ function SingleIndicatorView({
   snap: DashboardSnapshot;
   history: DashboardHistory | undefined;
 }) {
-  const score = snap.indicatorScores.find((i) => i.indicatorId === selected.id);
-  const persp = snap.perspectives.find((p) => p.id === selected.perspectiveId);
+  const score = (snap.indicatorScores ?? []).find((i) => i.indicatorId === selected.id);
+  const persp = (snap.perspectives ?? []).find((p) => p.id === selected.perspectiveId);
 
-  const histData =
-    history?.periods.map((p) => {
-      const ind = p.indicatorScores.find((i) => i.indicatorId === selected.id);
-      return {
-        label: `${MONTH_NAMES_SHORT[p.month - 1]}/${String(p.year).slice(2)}`,
-        meta: ind?.goal ?? null,
-        resultado: ind?.result ?? null,
-        score: ind?.score !== null && ind?.score !== undefined ? Math.round(ind.score * 1000) / 10 : null,
-      };
-    }) ?? [];
+  const histData = (history?.periods ?? []).map((p) => {
+    const ind = p.indicatorScores.find((i) => i.indicatorId === selected.id);
+    return {
+      label: `${MONTH_NAMES_SHORT[p.month - 1]}/${String(p.year).slice(2)}`,
+      meta: ind?.goal ?? null,
+      resultado: ind?.result ?? null,
+      score: ind?.score !== null && ind?.score !== undefined ? Math.round(ind.score * 1000) / 10 : null,
+    };
+  });
 
   const isPercent = selected.unit === "percent";
   const valFmt = (v: number) =>
@@ -366,9 +365,9 @@ function SingleIndicatorView({
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {snap.areas
+            {(snap.areas ?? [])
               .filter((a) =>
-                snap.applicability.some((x) => x.indicatorId === selected.id && x.areaId === a.id && x.applicable),
+                (snap.applicability ?? []).some((x) => x.indicatorId === selected.id && x.areaId === a.id && x.applicable),
               )
               .map((a) => (
                 <span key={a.id} className="inline-flex items-center rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
@@ -401,16 +400,16 @@ function IndicatorGroupView({
   scopeColor: string;
   onSelectIndicator: (id: number) => void;
 }) {
-  const perspName = new Map(snap.perspectives.map((p) => [p.id, p.name]));
-  const objName = new Map(snap.objectives.map((o) => [o.id, o.name]));
+  const perspName = new Map((snap.perspectives ?? []).map((p) => [p.id, p.name]));
+  const objName = new Map((snap.objectives ?? []).map((o) => [o.id, o.name]));
   const indIds = new Set(indicators.map((i) => i.id));
-  const scores = snap.indicatorScores.filter((s) => indIds.has(s.indicatorId));
+  const scores = (snap.indicatorScores ?? []).filter((s) => indIds.has(s.indicatorId));
   const groupAverage = averageScore(scores.map((s) => s.score));
 
   const applicableAreaIds = new Set(
-    snap.applicability.filter((a) => a.applicable && indIds.has(a.indicatorId)).map((a) => a.areaId),
+    (snap.applicability ?? []).filter((a) => a.applicable && indIds.has(a.indicatorId)).map((a) => a.areaId),
   );
-  const applicableAreas = snap.areas.filter((a) => applicableAreaIds.has(a.id));
+  const applicableAreas = (snap.areas ?? []).filter((a) => applicableAreaIds.has(a.id));
 
   const barData = scores
     .filter((s) => s.score !== null)
@@ -480,7 +479,7 @@ function IndicatorGroupView({
                   </thead>
                   <tbody>
                     {indicators.map((ind) => {
-                      const s = snap.indicatorScores.find((x) => x.indicatorId === ind.id);
+                      const s = (snap.indicatorScores ?? []).find((x) => x.indicatorId === ind.id);
                       return (
                         <tr
                           key={ind.id}
