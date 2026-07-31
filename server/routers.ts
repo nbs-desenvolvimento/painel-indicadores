@@ -23,6 +23,27 @@ async function scopedAreaIds(ctx: TrpcContext): Promise<number[] | null> {
   return db.getUserAreaIds(ctx.user!.id);
 }
 
+/** null = sem restrição (admin, vê todas as empresas). number[] = usuário comum, empresas liberadas para ele. */
+async function scopedCompanyIds(ctx: TrpcContext): Promise<number[] | null> {
+  if (ctx.user!.role === "admin") return null;
+  return db.getUserCompanyIds(ctx.user!.id);
+}
+
+/** Bloqueia o acesso a uma empresa fora da lista liberada para o usuário (admin nunca é bloqueado). */
+async function assertCompanyAccess(ctx: TrpcContext, companyId: number) {
+  const allowed = await scopedCompanyIds(ctx);
+  if (allowed !== null && !allowed.includes(companyId)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Você não tem acesso a esta empresa" });
+  }
+}
+
+/** Restringe uma lista de linhas com companyId às empresas liberadas (admin não é filtrado). */
+function filterByAllowedCompanies<T extends { companyId: number }>(rows: T[], allowed: number[] | null): T[] {
+  if (allowed === null) return rows;
+  const allowedSet = new Set(allowed);
+  return rows.filter((r) => allowedSet.has(r.companyId));
+}
+
 const BCRYPT_ROUNDS = 10;
 // Comparado quando o email não existe, para que o tempo de resposta não denuncie
 // se a falha foi por email ou por senha (bcrypt.compare sempre roda de qualquer jeito).
@@ -78,9 +99,13 @@ export const appRouter = router({
           password: z.string().min(8, "A senha deve ter ao menos 8 caracteres"),
           role: z.enum(["user", "admin"]).default("user"),
           areaIds: z.array(z.number()).optional(),
+          companyIds: z.array(z.number()).optional(),
         }),
       )
       .mutation(async ({ input }) => {
+        if (input.role === "user" && (!input.companyIds || input.companyIds.length === 0)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Selecione ao menos uma empresa para o usuário" });
+        }
         const existing = await db.getUserByEmail(input.email);
         if (existing) {
           throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este email" });
@@ -92,6 +117,7 @@ export const appRouter = router({
           passwordHash,
           role: input.role,
           areaIds: input.areaIds,
+          companyIds: input.companyIds,
         });
         return { id };
       }),
@@ -104,6 +130,7 @@ export const appRouter = router({
           role: z.enum(["user", "admin"]).optional(),
           active: z.boolean().optional(),
           areaIds: z.array(z.number()).optional(),
+          companyIds: z.array(z.number()).optional(),
         }),
       )
       .mutation(async ({ input, ctx }) => {
@@ -120,6 +147,14 @@ export const appRouter = router({
           const existing = await db.getUserByEmail(data.email);
           if (existing && existing.id !== id) {
             throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este email" });
+          }
+        }
+        if (data.companyIds !== undefined || data.role === "user") {
+          const target = await db.getUserById(id);
+          const resultingRole = data.role ?? target?.role;
+          const resultingCompanyIds = data.companyIds ?? (resultingRole === "user" ? await db.getUserCompanyIds(id) : []);
+          if (resultingRole === "user" && resultingCompanyIds.length === 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Selecione ao menos uma empresa para o usuário" });
           }
         }
         await db.updateUser(id, data);
@@ -151,7 +186,10 @@ export const appRouter = router({
   }),
 
   companies: router({
-    list: protectedProcedure.query(() => db.listCompanies()),
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const allowed = await scopedCompanyIds(ctx);
+      return allowed === null ? db.listCompanies() : db.listCompaniesForUser(allowed);
+    }),
     create: adminProcedure
       .input(z.object({ name: z.string().min(1), cnpj: z.string().optional() }))
       .mutation(async ({ input }) => ({ id: await db.createCompany(input) })),
@@ -172,6 +210,7 @@ export const appRouter = router({
     list: protectedProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
       .query(async ({ input, ctx }) => {
+        if (input?.companyId) await assertCompanyAccess(ctx, input.companyId);
         const all = await db.listAreas(input?.companyId);
         const allowed = await scopedAreaIds(ctx);
         if (allowed === null) return all;
@@ -197,7 +236,14 @@ export const appRouter = router({
   perspectives: router({
     list: protectedProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(({ input }) => db.listPerspectives(input?.companyId)),
+      .query(async ({ input, ctx }) => {
+        if (input?.companyId) {
+          await assertCompanyAccess(ctx, input.companyId);
+          return db.listPerspectives(input.companyId);
+        }
+        const all = await db.listPerspectives();
+        return filterByAllowedCompanies(all, await scopedCompanyIds(ctx));
+      }),
     create: adminProcedure
       .input(
         z.object({
@@ -235,6 +281,7 @@ export const appRouter = router({
     list: protectedProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
       .query(async ({ input, ctx }) => {
+        if (input?.companyId) await assertCompanyAccess(ctx, input.companyId);
         const all = await db.listIndicators(input?.companyId);
         const allowedAreaIds = await scopedAreaIds(ctx);
         if (allowedAreaIds === null) return all;
@@ -289,7 +336,14 @@ export const appRouter = router({
   objectives: router({
     list: protectedProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(({ input }) => db.listObjectives(input?.companyId)),
+      .query(async ({ input, ctx }) => {
+        if (input?.companyId) {
+          await assertCompanyAccess(ctx, input.companyId);
+          return db.listObjectives(input.companyId);
+        }
+        const all = await db.listObjectives();
+        return filterByAllowedCompanies(all, await scopedCompanyIds(ctx));
+      }),
     create: adminProcedure
       .input(
         z.object({
@@ -326,7 +380,14 @@ export const appRouter = router({
   calibrationRules: router({
     list: protectedProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(({ input }) => db.listCalibrationRules(input?.companyId)),
+      .query(async ({ input, ctx }) => {
+        if (input?.companyId) {
+          await assertCompanyAccess(ctx, input.companyId);
+          return db.listCalibrationRules(input.companyId);
+        }
+        const all = await db.listCalibrationRules();
+        return filterByAllowedCompanies(all, await scopedCompanyIds(ctx));
+      }),
     create: adminProcedure
       .input(
         z.object({
@@ -444,6 +505,7 @@ export const appRouter = router({
         }),
       )
       .mutation(async ({ input, ctx }) => {
+        await assertCompanyAccess(ctx, input.companyId);
         const buffer = Buffer.from(input.fileBase64, "base64");
         if (buffer.length > 15 * 1024 * 1024) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Arquivo muito grande (máx. 15 MB)" });
@@ -469,13 +531,19 @@ export const appRouter = router({
         });
         return result;
       }),
-    logs: protectedProcedure.input(z.object({ companyId: z.number() })).query(({ input }) => db.listImportLogs(input.companyId)),
+    logs: protectedProcedure
+      .input(z.object({ companyId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        await assertCompanyAccess(ctx, input.companyId);
+        return db.listImportLogs(input.companyId);
+      }),
   }),
 
   dashboard: router({
     snapshot: protectedProcedure
       .input(z.object({ companyId: z.number(), mode: z.enum(["month", "ytd"]).default("month") }).merge(periodSchema))
       .query(async ({ input, ctx }) => {
+        await assertCompanyAccess(ctx, input.companyId);
         const allowedAreaIds = await scopedAreaIds(ctx);
         return buildCompanySnapshot(input.companyId, input.year, input.month, allowedAreaIds, input.mode);
       }),
@@ -487,6 +555,7 @@ export const appRouter = router({
         }),
       )
       .query(async ({ input, ctx }) => {
+        await assertCompanyAccess(ctx, input.companyId);
         const allowedAreaIds = await scopedAreaIds(ctx);
         return buildHistory(input.companyId, input.periods, allowedAreaIds);
       }),

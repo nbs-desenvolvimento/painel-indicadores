@@ -1,6 +1,15 @@
 import type { Express, Request, Response } from "express";
 import { createContext } from "./_core/context";
+import type { User } from "./drizzle/schema";
+import * as db from "./db";
 import { generateExcelReport, generateImportTemplate } from "./exportService";
+
+/** null = sem restrição (admin). false = empresa fora da lista liberada para o usuário. */
+async function checkCompanyAccess(user: User, companyId: number): Promise<boolean> {
+  if (user.role === "admin") return true;
+  const allowed = await db.getUserCompanyIds(user.id);
+  return allowed.includes(companyId);
+}
 
 /**
  * Rotas de download (Excel). Registradas em server/_core/index.ts.
@@ -22,7 +31,12 @@ export function registerExportRoutes(app: Express) {
         res.status(400).json({ error: "Parâmetros companyId, year e month são obrigatórios" });
         return;
       }
-      const buffer = await generateExcelReport(companyId, year, month, mode);
+      if (!(await checkCompanyAccess(ctx.user, companyId))) {
+        res.status(403).json({ error: "Você não tem acesso a esta empresa" });
+        return;
+      }
+      const allowedAreaIds = ctx.user.role === "admin" ? null : await db.getUserAreaIds(ctx.user.id);
+      const buffer = await generateExcelReport(companyId, year, month, mode, allowedAreaIds);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       const suffix = mode === "ytd" ? `acumulado-ate-${String(month).padStart(2, "0")}` : String(month).padStart(2, "0");
       res.setHeader(
@@ -46,6 +60,10 @@ export function registerExportRoutes(app: Express) {
       const companyId = parseInt(String(req.query.companyId));
       if (!companyId) {
         res.status(400).json({ error: "Parâmetro companyId é obrigatório" });
+        return;
+      }
+      if (!(await checkCompanyAccess(ctx.user, companyId))) {
+        res.status(403).json({ error: "Você não tem acesso a esta empresa" });
         return;
       }
       const buffer = await generateImportTemplate(companyId);

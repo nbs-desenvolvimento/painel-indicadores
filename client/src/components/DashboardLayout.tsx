@@ -1,3 +1,4 @@
+import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -6,6 +7,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -28,6 +31,8 @@ import { useIsMobile } from "@/hooks/useMobile";
 import {
   BarChart3,
   Building2,
+  Check,
+  ChevronsUpDown,
   ClipboardEdit,
   Compass,
   Crosshair,
@@ -85,7 +90,6 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Cadastros",
     items: [
-      { icon: Building2, label: "Empresas", path: "/cadastros/empresas", adminOnly: true },
       { icon: Layers, label: "Áreas", path: "/cadastros/areas", adminOnly: true },
       { icon: Compass, label: "Perspectivas", path: "/cadastros/perspectivas", adminOnly: true },
       { icon: Crosshair, label: "Objetivos", path: "/cadastros/objetivos", adminOnly: true },
@@ -96,7 +100,10 @@ const menuGroups: MenuGroup[] = [
   },
   {
     label: "Administração",
-    items: [{ icon: Users, label: "Usuários", path: "/admin/usuarios", adminOnly: true }],
+    items: [
+      { icon: Building2, label: "Empresas", path: "/admin/empresas", adminOnly: true },
+      { icon: Users, label: "Usuários", path: "/admin/usuarios", adminOnly: true },
+    ],
   },
 ];
 
@@ -269,6 +276,8 @@ type DashboardLayoutContentProps = {
 
 function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
+  const { companyId, setCompanyId, companies } = useApp();
+  const activeCompanyName = companies?.find((c) => c.id === companyId)?.name;
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -335,9 +344,16 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                 className="h-8 w-8 object-contain shrink-0"
               />
               {!isCollapsed ? (
-                <span className="font-semibold tracking-tight text-center text-sm leading-tight text-sidebar-foreground">
-                  Painel de Gestão por Indicadores
-                </span>
+                <>
+                  <span className="font-semibold tracking-tight text-center text-sm leading-tight text-sidebar-foreground">
+                    Painel de Gestão por Indicadores
+                  </span>
+                  {activeCompanyName && (
+                    <span className="text-[10px] text-sidebar-foreground/40 truncate max-w-full">
+                      {activeCompanyName}
+                    </span>
+                  )}
+                </>
               ) : null}
             </div>
           </SidebarHeader>
@@ -389,9 +405,24 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                       {user?.role === "admin" ? "Administrador" : "Usuário"}
                     </p>
                   </div>
+                  <ChevronsUpDown className="h-4 w-4 text-sidebar-foreground/40 shrink-0 group-data-[collapsible=icon]:hidden" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-56">
+                {companies && companies.length > 1 && (
+                  <>
+                    <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+                      Empresa
+                    </DropdownMenuLabel>
+                    {companies.map((c) => (
+                      <DropdownMenuItem key={c.id} onClick={() => setCompanyId(c.id)} className="cursor-pointer">
+                        <span className="flex-1 truncate">{c.name}</span>
+                        {c.id === companyId && <Check className="h-4 w-4 shrink-0" />}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"

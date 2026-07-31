@@ -47,8 +47,9 @@ export async function generateExcelReport(
   year: number,
   month: number,
   mode: "month" | "ytd" = "month",
+  allowedAreaIds: number[] | null = null,
 ): Promise<Buffer> {
-  const snap = await buildCompanySnapshot(companyId, year, month, null, mode);
+  const snap = await buildCompanySnapshot(companyId, year, month, allowedAreaIds, mode);
   const wb = new ExcelJS.Workbook();
   wb.creator = "Painel de Gestão de Indicadores";
   const periodLabel =

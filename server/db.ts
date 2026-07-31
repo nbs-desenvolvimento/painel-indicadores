@@ -14,6 +14,7 @@ import {
   perspectives,
   User,
   userAreas,
+  userCompanies,
   users,
 } from "./drizzle/schema";
 
@@ -66,7 +67,15 @@ export async function listUsers() {
     if (!areaMap.has(r.userId)) areaMap.set(r.userId, []);
     areaMap.get(r.userId)!.push(r.areaId);
   }
-  return rows.map((u) => ({ ...u, areaIds: areaMap.get(u.id) ?? [] }));
+  const companyRows = await db
+    .select({ userId: userCompanies.userId, companyId: userCompanies.companyId })
+    .from(userCompanies);
+  const companyMap = new Map<number, number[]>();
+  for (const r of companyRows) {
+    if (!companyMap.has(r.userId)) companyMap.set(r.userId, []);
+    companyMap.get(r.userId)!.push(r.companyId);
+  }
+  return rows.map((u) => ({ ...u, areaIds: areaMap.get(u.id) ?? [], companyIds: companyMap.get(u.id) ?? [] }));
 }
 
 export async function createUser(data: {
@@ -75,36 +84,48 @@ export async function createUser(data: {
   passwordHash: string;
   role?: "user" | "admin";
   areaIds?: number[];
+  companyIds?: number[];
 }) {
   const db = requireDb(await getDb());
-  const { areaIds, ...rest } = data;
+  const { areaIds, companyIds, ...rest } = data;
   const [res] = await db.insert(users).values(rest).returning({ id: users.id });
-  if (rest.role !== "admin" && areaIds && areaIds.length > 0) {
-    await setUserAreas(res.id, areaIds);
+  if (rest.role !== "admin") {
+    if (areaIds && areaIds.length > 0) await setUserAreas(res.id, areaIds);
+    if (companyIds && companyIds.length > 0) await setUserCompanies(res.id, companyIds);
   }
   return res.id;
 }
 
 export async function updateUser(
   id: number,
-  data: Partial<{ name: string | null; email: string; role: "user" | "admin"; active: boolean; areaIds: number[] }>,
+  data: Partial<{
+    name: string | null;
+    email: string;
+    role: "user" | "admin";
+    active: boolean;
+    areaIds: number[];
+    companyIds: number[];
+  }>,
 ) {
   const db = requireDb(await getDb());
-  const { areaIds, ...rest } = data;
+  const { areaIds, companyIds, ...rest } = data;
   if (Object.keys(rest).length > 0) {
     await db.update(users).set({ ...rest, updatedAt: new Date() }).where(eq(users.id, id));
   }
   if (rest.role === "admin") {
-    // Admin não é restrito por área — qualquer área residual é limpa.
+    // Admin não é restrito por área nem por empresa — qualquer vínculo residual é limpo.
     await setUserAreas(id, []);
-  } else if (areaIds !== undefined) {
-    await setUserAreas(id, areaIds);
+    await setUserCompanies(id, []);
+  } else {
+    if (areaIds !== undefined) await setUserAreas(id, areaIds);
+    if (companyIds !== undefined) await setUserCompanies(id, companyIds);
   }
 }
 
 export async function deleteUser(id: number) {
   const db = requireDb(await getDb());
   await db.delete(userAreas).where(eq(userAreas.userId, id));
+  await db.delete(userCompanies).where(eq(userCompanies.userId, id));
   await db.delete(users).where(eq(users.id, id));
 }
 
@@ -139,6 +160,17 @@ export async function updateUserRole(userId: number, role: "user" | "admin") {
 export async function listCompanies() {
   const db = requireDb(await getDb());
   return db.select().from(companies).orderBy(asc(companies.name));
+}
+
+/** Empresas visíveis para um usuário comum (lista explícita, ver user_companies). */
+export async function listCompaniesForUser(companyIds: number[]) {
+  if (companyIds.length === 0) return [];
+  const db = requireDb(await getDb());
+  return db
+    .select()
+    .from(companies)
+    .where(inArray(companies.id, companyIds))
+    .orderBy(asc(companies.name));
 }
 
 export async function createCompany(data: { name: string; cnpj?: string | null }) {
@@ -181,6 +213,7 @@ export async function deleteCompany(id: number) {
   await db.delete(areas).where(eq(areas.companyId, id));
   await db.delete(perspectives).where(eq(perspectives.companyId, id));
   await db.delete(importLogs).where(eq(importLogs.companyId, id));
+  await db.delete(userCompanies).where(eq(userCompanies.companyId, id));
   await db.delete(companies).where(eq(companies.id, id));
 }
 
@@ -559,6 +592,59 @@ export async function setUserAreas(userId: number, areaIds: number[]) {
   if (areaIds.length > 0) {
     await db.insert(userAreas).values(areaIds.map((areaId) => ({ userId, areaId })));
   }
+}
+
+/** Empresas liberadas para um usuário comum. Irrelevante para admin (não é restrito, vê todas). */
+export async function getUserCompanyIds(userId: number): Promise<number[]> {
+  const db = requireDb(await getDb());
+  const rows = await db
+    .select({ companyId: userCompanies.companyId })
+    .from(userCompanies)
+    .where(eq(userCompanies.userId, userId));
+  return rows.map((r) => r.companyId);
+}
+
+/** Substitui por completo o conjunto de empresas liberadas para o usuário. */
+export async function setUserCompanies(userId: number, companyIds: number[]) {
+  const db = requireDb(await getDb());
+  await db.delete(userCompanies).where(eq(userCompanies.userId, userId));
+  if (companyIds.length > 0) {
+    await db.insert(userCompanies).values(companyIds.map((companyId) => ({ userId, companyId })));
+  }
+}
+
+/** companyId dono da linha, para autorização de mutações que só recebem `{ id }`. Null se a linha não existe. */
+export async function getAreaCompanyId(id: number): Promise<number | null> {
+  const db = requireDb(await getDb());
+  const [row] = await db.select({ companyId: areas.companyId }).from(areas).where(eq(areas.id, id));
+  return row?.companyId ?? null;
+}
+
+export async function getPerspectiveCompanyId(id: number): Promise<number | null> {
+  const db = requireDb(await getDb());
+  const [row] = await db.select({ companyId: perspectives.companyId }).from(perspectives).where(eq(perspectives.id, id));
+  return row?.companyId ?? null;
+}
+
+export async function getIndicatorCompanyId(id: number): Promise<number | null> {
+  const db = requireDb(await getDb());
+  const [row] = await db.select({ companyId: indicators.companyId }).from(indicators).where(eq(indicators.id, id));
+  return row?.companyId ?? null;
+}
+
+export async function getObjectiveCompanyId(id: number): Promise<number | null> {
+  const db = requireDb(await getDb());
+  const [row] = await db.select({ companyId: objectives.companyId }).from(objectives).where(eq(objectives.id, id));
+  return row?.companyId ?? null;
+}
+
+export async function getCalibrationRuleCompanyId(id: number): Promise<number | null> {
+  const db = requireDb(await getDb());
+  const [row] = await db
+    .select({ companyId: calibrationRules.companyId })
+    .from(calibrationRules)
+    .where(eq(calibrationRules.id, id));
+  return row?.companyId ?? null;
 }
 
 /** Indicadores aplicáveis a pelo menos uma das áreas informadas. */

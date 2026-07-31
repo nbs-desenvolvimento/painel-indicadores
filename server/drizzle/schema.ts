@@ -230,6 +230,18 @@ export const userAreas = pgTable(
 );
 export type UserArea = typeof userAreas.$inferSelect;
 
+/** Empresas que um usuário comum pode ver/lançar. Só relevante para role="user"; admin não é restrito (vê todas). */
+export const userCompanies = pgTable(
+  "user_companies",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("userId").notNull(),
+    companyId: integer("companyId").notNull(),
+  },
+  (t) => [uniqueIndex("uq_user_company").on(t.userId, t.companyId)],
+);
+export type UserCompany = typeof userCompanies.$inferSelect;
+
 export const entrySourceEnum = pgEnum("source", ["manual", "import"]);
 
 /** Metas e resultados por indicador por período (mês/ano) */

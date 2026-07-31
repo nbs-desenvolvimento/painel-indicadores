@@ -12,6 +12,9 @@ const dbMocks = vi.hoisted(() => ({
   listApplicability: vi.fn(),
   listEntries: vi.fn(),
   getUserAreaIds: vi.fn(),
+  getUserCompanyIds: vi.fn(),
+  listCompanies: vi.fn(),
+  listCompaniesForUser: vi.fn(),
   getIndicatorIdsForAreas: vi.fn(),
   upsertEntry: vi.fn(),
 }));
@@ -29,6 +32,9 @@ vi.mock("./db", async (importOriginal) => {
     listApplicability: dbMocks.listApplicability,
     listEntries: dbMocks.listEntries,
     getUserAreaIds: dbMocks.getUserAreaIds,
+    getUserCompanyIds: dbMocks.getUserCompanyIds,
+    listCompanies: dbMocks.listCompanies,
+    listCompaniesForUser: dbMocks.listCompaniesForUser,
     getIndicatorIdsForAreas: dbMocks.getIndicatorIdsForAreas,
     upsertEntry: dbMocks.upsertEntry,
   };
@@ -98,6 +104,8 @@ const mkIndicator = (id: number, overrides: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   Object.values(dbMocks).forEach((m) => m.mockReset());
   dbMocks.listObjectives.mockResolvedValue([]);
+  // Por padrão, o usuário comum dos testes tem acesso à empresa 1 (usada em quase todo teste).
+  dbMocks.getUserCompanyIds.mockResolvedValue([1]);
 });
 
 describe("areas.list — restrição por área", () => {
@@ -148,6 +156,91 @@ describe("indicators.list — restrição por área", () => {
     const result = await makeCaller(user).indicators.list({ companyId: 1 });
     expect(result.map((i: { id: number }) => i.id)).toEqual([11]);
     expect(dbMocks.getIndicatorIdsForAreas).toHaveBeenCalledWith([2]);
+  });
+});
+
+describe("empresas — isolamento por tenant (multi-tenancy)", () => {
+  const mkPersp = (id: number, companyId: number) => ({
+    id,
+    companyId,
+    name: `Perspectiva ${id}`,
+    description: null,
+    color: "#000",
+    sortOrder: id,
+    active: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  it("usuário comum vinculado só à Empresa 1 não acessa a Empresa 2 (areas.list)", async () => {
+    dbMocks.getUserCompanyIds.mockResolvedValue([1]);
+    const user = buildUser({ id: 5, role: "user" });
+
+    await expect(makeCaller(user).areas.list({ companyId: 2 })).rejects.toThrow(
+      "Você não tem acesso a esta empresa",
+    );
+  });
+
+  it("usuário comum vinculado às Empresas 1 e 2 acessa as duas, mas não uma terceira", async () => {
+    dbMocks.getUserCompanyIds.mockResolvedValue([1, 2]);
+    dbMocks.listPerspectives.mockResolvedValue([]);
+    const user = buildUser({ id: 5, role: "user" });
+
+    await expect(makeCaller(user).perspectives.list({ companyId: 1 })).resolves.toEqual([]);
+    await expect(makeCaller(user).perspectives.list({ companyId: 2 })).resolves.toEqual([]);
+    await expect(makeCaller(user).perspectives.list({ companyId: 3 })).rejects.toThrow(
+      "Você não tem acesso a esta empresa",
+    );
+  });
+
+  it("admin acessa qualquer empresa mesmo sem nenhum vínculo em user_companies", async () => {
+    dbMocks.listPerspectives.mockResolvedValue([]);
+    const admin = buildUser({ id: 1, role: "admin" });
+
+    await expect(makeCaller(admin).perspectives.list({ companyId: 999 })).resolves.toEqual([]);
+    expect(dbMocks.getUserCompanyIds).not.toHaveBeenCalled();
+  });
+
+  it("dashboard.snapshot bloqueia empresa fora do vínculo do usuário", async () => {
+    dbMocks.getUserCompanyIds.mockResolvedValue([1]);
+    const user = buildUser({ id: 5, role: "user" });
+
+    await expect(
+      makeCaller(user).dashboard.snapshot({ companyId: 2, year: 2026, month: 1 }),
+    ).rejects.toThrow("Você não tem acesso a esta empresa");
+  });
+
+  it("perspectives.list sem companyId filtra pelas empresas do usuário comum", async () => {
+    dbMocks.getUserCompanyIds.mockResolvedValue([1]);
+    dbMocks.listPerspectives.mockResolvedValue([mkPersp(1, 1), mkPersp(2, 2)]);
+    const user = buildUser({ id: 5, role: "user" });
+
+    const result = await makeCaller(user).perspectives.list();
+    expect(result.map((p: { id: number }) => p.id)).toEqual([1]);
+  });
+
+  it("perspectives.list sem companyId não filtra para admin", async () => {
+    dbMocks.listPerspectives.mockResolvedValue([mkPersp(1, 1), mkPersp(2, 2)]);
+    const admin = buildUser({ id: 1, role: "admin" });
+
+    const result = await makeCaller(admin).perspectives.list();
+    expect(result.map((p: { id: number }) => p.id)).toEqual([1, 2]);
+    expect(dbMocks.getUserCompanyIds).not.toHaveBeenCalled();
+  });
+
+  it("companies.list: admin vê todas as empresas; usuário comum vê só as suas", async () => {
+    dbMocks.listCompanies.mockResolvedValue([{ id: 1, name: "A" }, { id: 2, name: "B" }]);
+    dbMocks.listCompaniesForUser.mockResolvedValue([{ id: 1, name: "A" }]);
+
+    const admin = buildUser({ id: 1, role: "admin" });
+    const adminResult = await makeCaller(admin).companies.list();
+    expect(adminResult.map((c: { id: number }) => c.id)).toEqual([1, 2]);
+
+    dbMocks.getUserCompanyIds.mockResolvedValue([1]);
+    const user = buildUser({ id: 5, role: "user" });
+    const userResult = await makeCaller(user).companies.list();
+    expect(userResult.map((c: { id: number }) => c.id)).toEqual([1]);
+    expect(dbMocks.listCompaniesForUser).toHaveBeenCalledWith([1]);
   });
 });
 

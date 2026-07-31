@@ -27,9 +27,10 @@ export interface PublicUser {
   lastSignedIn: Date;
 }
 
-/** Retorno de trpc.users.list — PublicUser + áreas liberadas (só relevante para role="user") */
+/** Retorno de trpc.users.list — PublicUser + áreas/empresas liberadas (só relevante para role="user") */
 export interface UserListItem extends PublicUser {
   areaIds: number[];
+  companyIds: number[];
 }
 
 export interface Company {

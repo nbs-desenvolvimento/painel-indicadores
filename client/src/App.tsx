@@ -41,7 +41,7 @@ function Router() {
         <Route path={"/dashboard/organograma"} component={Organograma} />
         <Route path={"/lancamentos"} component={Lancamentos} />
         <Route path={"/importacao"} component={Importacao} />
-        <Route path={"/cadastros/empresas"} component={CadastroEmpresas} />
+        <Route path={"/admin/empresas"} component={CadastroEmpresas} />
         <Route path={"/cadastros/areas"} component={CadastroAreas} />
         <Route path={"/cadastros/perspectivas"} component={CadastroPerspectivas} />
         <Route path={"/cadastros/objetivos"} component={CadastroObjetivos} />

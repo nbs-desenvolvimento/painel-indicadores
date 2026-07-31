@@ -19,7 +19,7 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY drizzle ./drizzle
-COPY migrate.mjs seed-db.mjs docker-entrypoint.sh ./
+COPY migrate.mjs seed-db.mjs backfill-user-companies.mjs docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
 EXPOSE 3000
