@@ -157,6 +157,11 @@
   .kpi-number {
     font-variant-numeric: tabular-nums;
   }
+
+  /* Faixa de título usada no cabeçalho do PDF (visível só na impressão, ver @media print abaixo) */
+  .print-doc-header {
+    display: none;
+  }
 }
 
 /* Button press feedback */
@@ -209,6 +214,30 @@ button:active {
   .card-elegant,
   .recharts-wrapper {
     break-inside: avoid;
+  }
+
+  /* Sombra não imprime bem (vira uma mancha cinza) — mantém só a borda, aspecto de documento */
+  .card-elegant {
+    box-shadow: none !important;
+  }
+
+  /* Cabeçalho do documento: logo + título em azul, separado do conteúdo por um
+     filete — em todo PDF gerado pelo sistema. */
+  .print-doc-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding-top: 2mm;
+    padding-bottom: 6mm;
+    margin-bottom: 8mm;
+    border-bottom: 2px solid #1e3a5f;
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  .print-doc-header h1 {
+    color: #1e3a5f !important;
   }
 
   * {

@@ -39,6 +39,8 @@ export function PageToolbar({
 
   const years = Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - 4 + i);
   const refMonth = exportMonth ?? month;
+  const companyName = companies?.find((c) => c.id === companyId)?.name;
+  const printedAt = new Date().toLocaleDateString("pt-BR");
 
   const handleExcel = () => {
     if (!companyId) return;
@@ -55,69 +57,85 @@ export function PageToolbar({
   };
 
   return (
-    <div className="flex flex-col gap-4 mb-6 print:hidden">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="page-title font-serif text-3xl">{title}</h1>
-          {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
+    <>
+      <div className="print-doc-header">
+        <div className="flex items-center gap-4">
+          <img src="/logo-painel-azul.png" alt="" className="h-12 w-12 object-contain shrink-0" />
+          <div>
+            <h1 className="text-2xl font-serif font-semibold">{title}</h1>
+            {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {companies && companies.length > 1 && (
-            <Select value={companyId ? String(companyId) : undefined} onValueChange={(v) => setCompanyId(parseInt(v))}>
-              <SelectTrigger className="w-[200px] bg-card">
-                <SelectValue placeholder="Empresa" />
-              </SelectTrigger>
-              <SelectContent>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {!hideMonth && (
-            <Select value={String(month)} onValueChange={(v) => setMonth(parseInt(v))}>
-              <SelectTrigger className="w-[130px] bg-card">
+        <div className="text-right text-xs text-muted-foreground shrink-0">
+          {companyName && <p className="text-sm font-medium text-foreground">{companyName}</p>}
+          <p>Gerado em {printedAt}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 mb-6 print:hidden">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="page-title font-serif text-3xl">{title}</h1>
+            {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {companies && companies.length > 1 && (
+              <Select value={companyId ? String(companyId) : undefined} onValueChange={(v) => setCompanyId(parseInt(v))}>
+                <SelectTrigger className="w-[200px] bg-card">
+                  <SelectValue placeholder="Empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {!hideMonth && (
+              <Select value={String(month)} onValueChange={(v) => setMonth(parseInt(v))}>
+                <SelectTrigger className="w-[130px] bg-card">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTH_NAMES.map((m, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v))}>
+              <SelectTrigger className="w-[100px] bg-card">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MONTH_NAMES.map((m, i) => (
-                  <SelectItem key={i + 1} value={String(i + 1)}>
-                    {m}
+                {years.map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          )}
-          <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v))}>
-            <SelectTrigger className="w-[100px] bg-card">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map((y) => (
-                <SelectItem key={y} value={String(y)}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {showExport && (
-            <>
-              <Button variant="outline" size="sm" className="bg-card" onClick={handleExcel}>
-                <FileSpreadsheet className="h-4 w-4 mr-1.5" />
-                Excel
-              </Button>
-              <Button variant="outline" size="sm" className="bg-card" onClick={handlePrint}>
-                <Printer className="h-4 w-4 mr-1.5" />
-                PDF
-              </Button>
-            </>
-          )}
-          {children}
+            {showExport && (
+              <>
+                <Button variant="outline" size="sm" className="bg-card" onClick={handleExcel}>
+                  <FileSpreadsheet className="h-4 w-4 mr-1.5" />
+                  Excel
+                </Button>
+                <Button variant="outline" size="sm" className="bg-card" onClick={handlePrint}>
+                  <Printer className="h-4 w-4 mr-1.5" />
+                  PDF
+                </Button>
+              </>
+            )}
+            {children}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
