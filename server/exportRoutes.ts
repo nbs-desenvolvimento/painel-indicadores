@@ -17,15 +17,17 @@ export function registerExportRoutes(app: Express) {
       const companyId = parseInt(String(req.query.companyId));
       const year = parseInt(String(req.query.year));
       const month = parseInt(String(req.query.month));
+      const mode = req.query.mode === "ytd" ? "ytd" : "month";
       if (!companyId || !year || !month) {
         res.status(400).json({ error: "Parâmetros companyId, year e month são obrigatórios" });
         return;
       }
-      const buffer = await generateExcelReport(companyId, year, month);
+      const buffer = await generateExcelReport(companyId, year, month, mode);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      const suffix = mode === "ytd" ? `acumulado-ate-${String(month).padStart(2, "0")}` : String(month).padStart(2, "0");
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="relatorio-indicadores-${year}-${String(month).padStart(2, "0")}.xlsx"`,
+        `attachment; filename="relatorio-indicadores-${year}-${suffix}.xlsx"`,
       );
       res.send(buffer);
     } catch (e) {

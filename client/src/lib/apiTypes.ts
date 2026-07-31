@@ -5,7 +5,14 @@
  * procedures de server/routers.ts de fato devolvem; mantenha em sincronia
  * manualmente se o shape do server mudar.
  */
-import type { AreaScore, CalibrationRuleDef, Direction, PerspectiveScore, ScaleType } from "@/lib/calcEngine";
+import type {
+  AreaScore,
+  CalibrationRuleDef,
+  Direction,
+  ObjectiveScore,
+  PerspectiveScore,
+  ScaleType,
+} from "@/lib/calcEngine";
 
 export type Role = "user" | "admin";
 
@@ -174,6 +181,12 @@ export interface IndicatorScoreDetail {
   score: number | null;
 }
 
+export interface ObjectiveScoreByArea {
+  areaId: number;
+  objectiveId: number;
+  average: number | null;
+}
+
 /** Retorno de trpc.dashboard.snapshot */
 export interface DashboardSnapshot {
   year: number;
@@ -181,8 +194,15 @@ export interface DashboardSnapshot {
   areas: Area[];
   perspectives: Perspective[];
   indicators: Indicator[];
+  objectives: Objective[];
   areaScores: (AreaScore & { areaName: string })[];
   indicatorScores: IndicatorScoreDetail[];
+  /** Score do objetivo na empresa, sem quebra por área (indicadores visíveis) */
+  objectiveScores: ObjectiveScore[];
+  /** Score do objetivo por área, para o gráfico "por área" do dashboard de objetivos */
+  objectiveScoresByArea: ObjectiveScoreByArea[];
+  /** Indicadores ativos (visíveis) sem objectiveId vinculado */
+  unassignedIndicatorCount: number;
   weights: AreaPerspectiveWeight[];
   applicability: IndicatorAreaApplicability[];
   entries: IndicatorEntry[];
@@ -204,11 +224,17 @@ export interface HistoryPeriodIndicatorScore {
   score: number | null;
 }
 
+export interface HistoryPeriodObjectiveScore {
+  objectiveId: number;
+  average: number | null;
+}
+
 export interface HistoryPeriod {
   year: number;
   month: number;
   areaScores: HistoryPeriodAreaScore[];
   indicatorScores: HistoryPeriodIndicatorScore[];
+  objectiveScores: HistoryPeriodObjectiveScore[];
 }
 
 /** Retorno de trpc.dashboard.history */
@@ -217,6 +243,7 @@ export interface DashboardHistory {
   areas: Area[];
   perspectives: Perspective[];
   indicators: Indicator[];
+  objectives: Objective[];
 }
 
 export type { CalibrationRuleDef, Direction };

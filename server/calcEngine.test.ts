@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeAreaScore, computeScore } from "./calcEngine";
+import { computeAreaScore, computeObjectiveScores, computeScore } from "./calcEngine";
 
 /**
  * Valores de validação extraídos diretamente da planilha GESTÃO DE INDICADORES:
@@ -175,5 +175,55 @@ describe("computeAreaScore — validação contra a planilha", () => {
     const result = computeAreaScore(1, [], new Map([[1, 0.5]]), [1]);
     expect(result.perspectives[0].average).toBeNull();
     expect(result.total).toBe(0);
+  });
+});
+
+describe("computeObjectiveScores", () => {
+  it("média simples dos scores dos indicadores do objetivo (sem peso)", () => {
+    const indicators = [
+      { id: 1, perspectiveId: 1, name: "A", scaleType: "higher_better_100" as const, goal: 100, result: 100 }, // 1.0
+      { id: 2, perspectiveId: 1, name: "B", scaleType: "higher_better_100" as const, goal: 100, result: 86 }, // 0.6
+    ];
+    const objectiveMap = new Map([
+      [1, 10],
+      [2, 10],
+    ]);
+    const result = computeObjectiveScores(indicators, [10], objectiveMap);
+    expect(result[0].objectiveId).toBe(10);
+    expect(result[0].average).toBeCloseTo(0.8, 10);
+    expect(result[0].indicatorScores).toHaveLength(2);
+  });
+
+  it("ignora indicadores sem meta/resultado lançado na média (AVERAGE ignora vazios)", () => {
+    const indicators = [
+      { id: 1, perspectiveId: 1, name: "A", scaleType: "higher_better_100" as const, goal: 100, result: 100 }, // 1.0
+      { id: 2, perspectiveId: 1, name: "B", scaleType: "higher_better_100" as const, goal: null, result: null }, // null
+    ];
+    const objectiveMap = new Map([
+      [1, 10],
+      [2, 10],
+    ]);
+    const result = computeObjectiveScores(indicators, [10], objectiveMap);
+    expect(result[0].average).toBeCloseTo(1.0, 10);
+  });
+
+  it("indicador sem objetivo vinculado (map → null) não entra em nenhum grupo", () => {
+    const indicators = [
+      { id: 1, perspectiveId: 1, name: "A", scaleType: "higher_better_100" as const, goal: 100, result: 100 },
+      { id: 2, perspectiveId: 1, name: "B", scaleType: "higher_better_100" as const, goal: 100, result: 100 },
+    ];
+    const objectiveMap = new Map<number, number | null>([
+      [1, 10],
+      [2, null],
+    ]);
+    const result = computeObjectiveScores(indicators, [10], objectiveMap);
+    expect(result[0].indicatorScores).toHaveLength(1);
+    expect(result[0].indicatorScores[0].indicatorId).toBe(1);
+  });
+
+  it("objetivo sem nenhum indicador aplicável → average null", () => {
+    const result = computeObjectiveScores([], [10], new Map());
+    expect(result[0].average).toBeNull();
+    expect(result[0].indicatorScores).toHaveLength(0);
   });
 });

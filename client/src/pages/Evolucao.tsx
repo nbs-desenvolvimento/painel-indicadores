@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MONTH_NAMES_SHORT, useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardHistory } from "@/lib/apiHooks";
+import { buildLast12Periods } from "@/lib/periods";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -30,22 +31,7 @@ const LINE_COLORS = [
   "#84cc16", "#06b6d4", "#f43f5e", "#8b5cf6", "#10b981", "#f59e0b",
 ];
 
-function buildLast12Periods(year: number, month: number) {
-  const periods: { year: number; month: number }[] = [];
-  let y = year;
-  let m = month;
-  for (let i = 0; i < 12; i++) {
-    periods.unshift({ year: y, month: m });
-    m--;
-    if (m === 0) {
-      m = 12;
-      y--;
-    }
-  }
-  return periods;
-}
-
-type Mode = "areas" | "perspectivas" | "indicadores";
+type Mode = "areas" | "perspectivas" | "objetivos" | "indicadores";
 
 export default function Evolucao() {
   const { companyId, year, month, periodLabel } = useApp();
@@ -55,7 +41,8 @@ export default function Evolucao() {
   const [selectedIds, setSelectedIds] = useState<Record<Mode, string>>({
     areas: "all",
     perspectivas: "all",
-    indicadores: "",
+    objetivos: "all",
+    indicadores: "all",
   });
 
   const periods = useMemo(() => buildLast12Periods(year, month), [year, month]);
@@ -113,9 +100,22 @@ export default function Evolucao() {
       }
       return row;
     });
+  } else if (mode === "objetivos") {
+    // Score do objetivo na empresa (sem quebra por área) — mesma lógica do Dashboard por Objetivo
+    const filter = selectedIds.objetivos;
+    const shown = filter === "all" ? history.objectives : history.objectives.filter((o) => String(o.id) === filter);
+    series = shown.map((o) => ({ key: `o${o.id}`, name: o.name }));
+    chartData = history.periods.map((p, idx) => {
+      const row: Record<string, unknown> = { label: labels[idx] };
+      for (const obj of shown) {
+        const s = p.objectiveScores.find((x) => x.objectiveId === obj.id);
+        row[`o${obj.id}`] = s?.average !== null && s?.average !== undefined ? Math.round(s.average * 1000) / 10 : null;
+      }
+      return row;
+    });
   } else {
-    const filter = selectedIds.indicadores || String(history.indicators[0]?.id ?? "");
-    const shown = history.indicators.filter((i) => String(i.id) === filter);
+    const filter = selectedIds.indicadores;
+    const shown = filter === "all" ? history.indicators : history.indicators.filter((i) => String(i.id) === filter);
     series = shown.map((i) => ({ key: `i${i.id}`, name: i.name }));
     chartData = history.periods.map((p, idx) => {
       const row: Record<string, unknown> = { label: labels[idx] };
@@ -132,12 +132,11 @@ export default function Evolucao() {
       ? [{ id: "all", name: "Todas as áreas" }, ...history.areas.map((a) => ({ id: String(a.id), name: a.name }))]
       : mode === "perspectivas"
         ? [{ id: "all", name: "Todas as perspectivas" }, ...history.perspectives.map((p) => ({ id: String(p.id), name: p.name }))]
-        : history.indicators.map((i) => ({ id: String(i.id), name: i.name }));
+        : mode === "objetivos"
+          ? [{ id: "all", name: "Todos os objetivos" }, ...history.objectives.map((o) => ({ id: String(o.id), name: o.name }))]
+          : [{ id: "all", name: "Todos os indicadores" }, ...history.indicators.map((i) => ({ id: String(i.id), name: i.name }))];
 
-  const currentSelection =
-    mode === "indicadores"
-      ? selectedIds.indicadores || String(history.indicators[0]?.id ?? "")
-      : selectedIds[mode];
+  const currentSelection = selectedIds[mode];
 
   return (
     <div className="fade-up">
@@ -154,6 +153,7 @@ export default function Evolucao() {
                 <TabsList>
                   <TabsTrigger value="areas">Áreas</TabsTrigger>
                   <TabsTrigger value="perspectivas">Perspectivas</TabsTrigger>
+                  <TabsTrigger value="objetivos">Objetivos</TabsTrigger>
                   <TabsTrigger value="indicadores">Indicadores</TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -195,6 +195,16 @@ export default function Evolucao() {
                     strokeWidth={2.2}
                     dot={{ r: 3 }}
                     connectNulls
+                    label={
+                      series.length === 1
+                        ? {
+                            position: "top",
+                            fontSize: 11,
+                            fill: LINE_COLORS[0],
+                            formatter: (v: number) => (v === null || v === undefined ? "" : `${v.toLocaleString("pt-BR")}%`),
+                          }
+                        : undefined
+                    }
                   />
                 ))}
               </LineChart>
@@ -203,6 +213,7 @@ export default function Evolucao() {
           <p className="text-xs text-muted-foreground mt-3">
             {mode === "areas" && "Desempenho total de cada área (soma das perspectivas ponderadas)."}
             {mode === "perspectivas" && "Média dos scores da perspectiva entre todas as áreas em que se aplica."}
+            {mode === "objetivos" && "Média dos scores dos indicadores do objetivo, sem quebra por área (mesma lógica do Dashboard por Objetivo)."}
             {mode === "indicadores" && "Score mensal do indicador conforme a escala de degraus configurada."}
           </p>
         </CardContent>

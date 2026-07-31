@@ -210,6 +210,46 @@ export interface AreaScore {
   total: number;
 }
 
+export interface ObjectiveScore {
+  objectiveId: number;
+  /** Média aritmética dos scores dos indicadores do objetivo (null se nenhum score) */
+  average: number | null;
+  /** Scores individuais dos indicadores do objetivo */
+  indicatorScores: { indicatorId: number; name: string; score: number | null }[];
+}
+
+/**
+ * Calcula o score de cada objetivo: MÉDIA aritmética simples dos scores dos
+ * indicadores vinculados a ele (sem peso — objetivo não tem peso próprio no
+ * modelo de dados, diferente de perspectiva × área). Indicadores cujo
+ * `indicatorObjectiveMap` não mapeia para um dos `objectiveIds` (ex.: sem
+ * objetivo vinculado) são ignorados.
+ */
+export function computeObjectiveScores(
+  indicators: IndicatorInput[],
+  objectiveIds: number[],
+  indicatorObjectiveMap: Map<number, number | null>,
+): ObjectiveScore[] {
+  return objectiveIds.map((objectiveId) => {
+    const inds = indicators.filter((i) => indicatorObjectiveMap.get(i.id) === objectiveId);
+    const indicatorScores = inds.map((i) => ({
+      indicatorId: i.id,
+      name: i.name,
+      score: i.calibrationRule
+        ? computeScoreWithRule(i.calibrationRule, i.goal, i.result, i.direction)
+        : computeScore(i.scaleType, i.goal, i.result),
+    }));
+    const valid = indicatorScores.filter((s) => s.score !== null) as {
+      indicatorId: number;
+      name: string;
+      score: number;
+    }[];
+    const average =
+      valid.length > 0 ? valid.reduce((acc, s) => acc + s.score, 0) / valid.length : null;
+    return { objectiveId, average, indicatorScores };
+  });
+}
+
 /**
  * Calcula o desempenho de uma área.
  * - indicators: todos os indicadores APLICÁVEIS à área com meta/resultado do período

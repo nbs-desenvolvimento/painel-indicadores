@@ -6,6 +6,7 @@ const dbMocks = vi.hoisted(() => ({
   listAreas: vi.fn(),
   listIndicators: vi.fn(),
   listPerspectives: vi.fn(),
+  listObjectives: vi.fn(),
   listCalibrationRules: vi.fn(),
   listWeights: vi.fn(),
   listApplicability: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("./db", async (importOriginal) => {
     listAreas: dbMocks.listAreas,
     listIndicators: dbMocks.listIndicators,
     listPerspectives: dbMocks.listPerspectives,
+    listObjectives: dbMocks.listObjectives,
     listCalibrationRules: dbMocks.listCalibrationRules,
     listWeights: dbMocks.listWeights,
     listApplicability: dbMocks.listApplicability,
@@ -95,6 +97,7 @@ const mkIndicator = (id: number, overrides: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   Object.values(dbMocks).forEach((m) => m.mockReset());
+  dbMocks.listObjectives.mockResolvedValue([]);
 });
 
 describe("areas.list — restrição por área", () => {
@@ -228,6 +231,59 @@ describe("dashboardService.buildCompanySnapshot — filtro por allowedAreaIds", 
     expect(snapshot.areas).toEqual([]);
     expect(snapshot.indicators).toEqual([]);
     expect(snapshot.indicatorScores).toEqual([]);
+  });
+
+  const mkEntry = (indicatorId: number, month: number, goal: number | null, result: number | null) => ({
+    id: month,
+    indicatorId,
+    year: 2026,
+    month,
+    goal,
+    result,
+    source: "manual" as const,
+    updatedBy: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  it("mode ytd soma meta e resultado de janeiro até o mês informado, ignorando meses posteriores", async () => {
+    dbMocks.listWeights.mockResolvedValue([{ id: 1, areaId: 1, perspectiveId: 1, weight: 1 }]);
+    dbMocks.listEntries.mockResolvedValueOnce([
+      mkEntry(10, 1, 10, 8),
+      mkEntry(10, 2, 10, 12),
+      mkEntry(10, 4, 10, 999), // fora do intervalo (mês 4 > mês 3 pedido) — deve ser ignorado
+    ]);
+
+    const snapshot = await buildCompanySnapshot(1, 2026, 3, null, "ytd");
+    const ind10 = snapshot.indicatorScores.find((s) => s.indicatorId === 10)!;
+    expect(ind10.goal).toBe(20);
+    expect(ind10.result).toBe(20);
+    expect(ind10.score).toBe(1.0); // higher_better_120: R(20) >= 0.95*M(19) e < 1.05*M(21)
+
+    const area1 = snapshot.areaScores.find((a) => a.areaId === 1)!;
+    expect(area1.total).toBeCloseTo(1.0);
+  });
+
+  it("mode month (padrão) usa apenas o lançamento do mês selecionado, sem acumular", async () => {
+    dbMocks.listWeights.mockResolvedValue([{ id: 1, areaId: 1, perspectiveId: 1, weight: 1 }]);
+    dbMocks.listEntries.mockResolvedValueOnce([mkEntry(10, 2, 10, 12)]);
+
+    const snapshot = await buildCompanySnapshot(1, 2026, 2, null);
+    const ind10 = snapshot.indicatorScores.find((s) => s.indicatorId === 10)!;
+    expect(ind10.goal).toBe(10);
+    expect(ind10.result).toBe(12);
+    expect(ind10.score).toBe(1.2); // higher_better_120: R(12) >= 1.05*M(10.5)
+  });
+
+  it("mode ytd sem nenhum lançamento no intervalo retorna goal/result null (sem score)", async () => {
+    dbMocks.listWeights.mockResolvedValue([{ id: 1, areaId: 1, perspectiveId: 1, weight: 1 }]);
+    dbMocks.listEntries.mockResolvedValueOnce([]);
+
+    const snapshot = await buildCompanySnapshot(1, 2026, 3, null, "ytd");
+    const ind10 = snapshot.indicatorScores.find((s) => s.indicatorId === 10)!;
+    expect(ind10.goal).toBeNull();
+    expect(ind10.result).toBeNull();
+    expect(ind10.score).toBeNull();
   });
 });
 

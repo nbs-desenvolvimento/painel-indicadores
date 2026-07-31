@@ -37,12 +37,22 @@ function scoreFill(score: number | null): string | null {
 /**
  * Gera um relatório Excel completo do período: visão geral das áreas,
  * detalhe por perspectiva e detalhe por indicador.
+ *
+ * `mode`: "month" (padrão) usa meta/resultado do mês informado; "ytd" soma
+ * meta e resultado de janeiro até o mês informado (acumulado do ano) — mesmo
+ * critério usado na tela de Ranking de Áreas.
  */
-export async function generateExcelReport(companyId: number, year: number, month: number): Promise<Buffer> {
-  const snap = await buildCompanySnapshot(companyId, year, month);
+export async function generateExcelReport(
+  companyId: number,
+  year: number,
+  month: number,
+  mode: "month" | "ytd" = "month",
+): Promise<Buffer> {
+  const snap = await buildCompanySnapshot(companyId, year, month, null, mode);
   const wb = new ExcelJS.Workbook();
   wb.creator = "Painel de Gestão de Indicadores";
-  const periodLabel = `${MONTH_NAMES[month - 1]}/${year}`;
+  const periodLabel =
+    mode === "ytd" ? `Acumulado Jan–${MONTH_NAMES[month - 1]}/${year}` : `${MONTH_NAMES[month - 1]}/${year}`;
 
   /* ---- Sheet 1: Visão geral (ranking) ---- */
   const ws1 = wb.addWorksheet("Visão Geral");

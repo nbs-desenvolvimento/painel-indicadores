@@ -474,10 +474,10 @@ export const appRouter = router({
 
   dashboard: router({
     snapshot: protectedProcedure
-      .input(z.object({ companyId: z.number() }).merge(periodSchema))
+      .input(z.object({ companyId: z.number(), mode: z.enum(["month", "ytd"]).default("month") }).merge(periodSchema))
       .query(async ({ input, ctx }) => {
         const allowedAreaIds = await scopedAreaIds(ctx);
-        return buildCompanySnapshot(input.companyId, input.year, input.month, allowedAreaIds);
+        return buildCompanySnapshot(input.companyId, input.year, input.month, allowedAreaIds, input.mode);
       }),
     history: protectedProcedure
       .input(

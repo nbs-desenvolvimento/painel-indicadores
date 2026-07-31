@@ -1,5 +1,6 @@
 import {
   computeAreaScore,
+  computeObjectiveScores,
   computeScore,
   computeScoreWithRule,
   type AreaScore,
@@ -50,23 +51,57 @@ export interface PeriodRef {
   month: number;
 }
 
+/** "month" = período único (comportamento tradicional). "ytd" = acumulado de janeiro até o mês informado. */
+export type SnapshotMode = "month" | "ytd";
+
+/**
+ * Agrega meta/resultado de vários lançamentos mensais em um único par (soma).
+ * Meses sem lançamento (ou com o campo vazio) são ignorados; se NENHUM mês do
+ * intervalo tiver o campo preenchido, o agregado retorna null (sem dado),
+ * mantendo a mesma semântica de "não lançado" usada no cálculo mensal.
+ */
+function aggregateYtdEntries(
+  entries: { indicatorId: number; goal: number | null; result: number | null }[],
+): Map<number, { goal: number | null; result: number | null }> {
+  const goalSums = new Map<number, number>();
+  const resultSums = new Map<number, number>();
+  for (const e of entries) {
+    if (e.goal !== null && e.goal !== undefined) {
+      goalSums.set(e.indicatorId, (goalSums.get(e.indicatorId) ?? 0) + e.goal);
+    }
+    if (e.result !== null && e.result !== undefined) {
+      resultSums.set(e.indicatorId, (resultSums.get(e.indicatorId) ?? 0) + e.result);
+    }
+  }
+  const ids = new Set(Array.from(goalSums.keys()).concat(Array.from(resultSums.keys())));
+  const map = new Map<number, { goal: number | null; result: number | null }>();
+  for (const id of Array.from(ids)) {
+    map.set(id, { goal: goalSums.get(id) ?? null, result: resultSums.get(id) ?? null });
+  }
+  return map;
+}
+
 /**
  * Monta o snapshot completo de desempenho de uma empresa em um período:
  * scores de todas as áreas, perspectivas e indicadores.
  *
  * `allowedAreaIds`: null = sem restrição (admin). Array = usuário comum,
  * restringe áreas/indicadores/lançamentos ao que foi liberado para ele.
+ * `mode`: "month" (padrão) usa meta/resultado do mês informado; "ytd" soma
+ * meta e resultado de janeiro até o mês informado (acumulado do ano).
  */
 export async function buildCompanySnapshot(
   companyId: number,
   year: number,
   month: number,
   allowedAreaIds: number[] | null = null,
+  mode: SnapshotMode = "month",
 ) {
-  const [areasList, perspectivesList, indicatorsList, ruleMaps] = await Promise.all([
+  const [areasList, perspectivesList, indicatorsList, objectivesList, ruleMaps] = await Promise.all([
     db.listAreas(companyId),
     db.listPerspectives(companyId),
     db.listIndicators(companyId),
+    db.listObjectives(companyId),
     buildRuleMaps(companyId),
   ]);
   const { defMap: ruleMap, nameMap: ruleNameMap } = ruleMaps;
@@ -79,14 +114,23 @@ export async function buildCompanySnapshot(
   const activePerspectives = perspectivesList.filter((p) => p.active);
   const activeIndicators = indicatorsList.filter((i) => i.active);
   const indicatorIds = activeIndicators.map((i) => i.id);
+  const activeObjectives = objectivesList.filter((o) => o.active);
+  const objectiveIds = activeObjectives.map((o) => o.id);
+  const indicatorObjectiveMap = new Map<number, number | null>(
+    activeIndicators.map((ind) => [ind.id, ind.objectiveId]),
+  );
 
-  const [weights, applicability, entries] = await Promise.all([
+  const [weights, applicability, rawEntries] = await Promise.all([
     db.listWeights(activeAreas.map((a) => a.id)),
     db.listApplicability(indicatorIds),
-    db.listEntries(indicatorIds, year, month),
+    mode === "ytd" ? db.listEntries(indicatorIds, year) : db.listEntries(indicatorIds, year, month),
   ]);
 
-  const entryMap = new Map(entries.map((e) => [e.indicatorId, e]));
+  // No modo ytd, listEntries(indicatorIds, year) traz o ano inteiro; restringe a jan..month.
+  const entries = mode === "ytd" ? rawEntries.filter((e) => e.month <= month) : rawEntries;
+
+  const entryMap: Map<number, { goal: number | null; result: number | null }> =
+    mode === "ytd" ? aggregateYtdEntries(entries) : new Map(entries.map((e) => [e.indicatorId, e]));
   const weightMapByArea = new Map<number, Map<number, number>>();
   for (const w of weights) {
     if (!weightMapByArea.has(w.areaId)) weightMapByArea.set(w.areaId, new Map());
@@ -98,6 +142,8 @@ export async function buildCompanySnapshot(
   }
 
   const perspectiveIds = activePerspectives.map((p) => p.id);
+
+  const objectiveScoresByArea: { areaId: number; objectiveId: number; average: number | null }[] = [];
 
   const areaScores: (AreaScore & { areaName: string })[] = activeAreas.map((area) => {
     const applicableInds: IndicatorInput[] = activeIndicators
@@ -117,6 +163,9 @@ export async function buildCompanySnapshot(
       });
     const weightMap = weightMapByArea.get(area.id) ?? new Map<number, number>();
     const score = computeAreaScore(area.id, applicableInds, weightMap, perspectiveIds);
+    for (const os of computeObjectiveScores(applicableInds, objectiveIds, indicatorObjectiveMap)) {
+      objectiveScoresByArea.push({ areaId: area.id, objectiveId: os.objectiveId, average: os.average });
+    }
     return { ...score, areaName: area.name };
   });
 
@@ -146,14 +195,36 @@ export async function buildCompanySnapshot(
     };
   });
 
+  // Score do objetivo na empresa (sem quebra por área): média dos indicadores
+  // visíveis do objetivo, independente de aplicabilidade por área.
+  const visibleIndicatorInputs: IndicatorInput[] = visibleIndicators.map((ind) => {
+    const entry = entryMap.get(ind.id);
+    return {
+      id: ind.id,
+      perspectiveId: ind.perspectiveId,
+      name: ind.name,
+      scaleType: ind.scaleType as ScaleType,
+      calibrationRule: ind.calibrationRuleId ? (ruleMap.get(ind.calibrationRuleId) ?? null) : null,
+      direction: ind.direction as Direction,
+      goal: entry?.goal ?? null,
+      result: entry?.result ?? null,
+    };
+  });
+  const objectiveScores = computeObjectiveScores(visibleIndicatorInputs, objectiveIds, indicatorObjectiveMap);
+  const unassignedIndicatorCount = visibleIndicators.filter((ind) => ind.objectiveId === null).length;
+
   return {
     year,
     month,
     areas: activeAreas,
     perspectives: activePerspectives,
     indicators: visibleIndicators,
+    objectives: activeObjectives,
     areaScores,
     indicatorScores,
+    objectiveScores,
+    objectiveScoresByArea,
+    unassignedIndicatorCount,
     weights,
     applicability: applicability.filter((a) => visibleIndicatorIds.has(a.indicatorId)),
     entries: entries.filter((e) => visibleIndicatorIds.has(e.indicatorId)),
@@ -167,10 +238,11 @@ export async function buildCompanySnapshot(
  * restringe áreas/indicadores ao que foi liberado para ele.
  */
 export async function buildHistory(companyId: number, periods: PeriodRef[], allowedAreaIds: number[] | null = null) {
-  const [areasList, perspectivesList, indicatorsList, ruleMaps] = await Promise.all([
+  const [areasList, perspectivesList, indicatorsList, objectivesList, ruleMaps] = await Promise.all([
     db.listAreas(companyId),
     db.listPerspectives(companyId),
     db.listIndicators(companyId),
+    db.listObjectives(companyId),
     buildRuleMaps(companyId),
   ]);
   const ruleMap = ruleMaps.defMap;
@@ -182,6 +254,11 @@ export async function buildHistory(companyId: number, periods: PeriodRef[], allo
   const activePerspectives = perspectivesList.filter((p) => p.active);
   const activeIndicators = indicatorsList.filter((i) => i.active);
   const indicatorIds = activeIndicators.map((i) => i.id);
+  const activeObjectives = objectivesList.filter((o) => o.active);
+  const objectiveIds = activeObjectives.map((o) => o.id);
+  const indicatorObjectiveMap = new Map<number, number | null>(
+    activeIndicators.map((ind) => [ind.id, ind.objectiveId]),
+  );
 
   const [weights, applicability, allEntries] = await Promise.all([
     db.listWeights(activeAreas.map((a) => a.id)),
@@ -248,7 +325,24 @@ export async function buildHistory(companyId: number, periods: PeriodRef[], allo
       };
     });
 
-    return { year, month, areaScores, indicatorScores };
+    const visibleIndicatorInputs: IndicatorInput[] = visibleIndicators.map((ind) => {
+      const entry = entryMap.get(ind.id);
+      return {
+        id: ind.id,
+        perspectiveId: ind.perspectiveId,
+        name: ind.name,
+        scaleType: ind.scaleType as ScaleType,
+        calibrationRule: ind.calibrationRuleId ? (ruleMap.get(ind.calibrationRuleId) ?? null) : null,
+        direction: ind.direction as Direction,
+        goal: entry?.goal ?? null,
+        result: entry?.result ?? null,
+      };
+    });
+    const objectiveScores = computeObjectiveScores(visibleIndicatorInputs, objectiveIds, indicatorObjectiveMap).map(
+      (os) => ({ objectiveId: os.objectiveId, average: os.average }),
+    );
+
+    return { year, month, areaScores, indicatorScores, objectiveScores };
   });
 
   return {
@@ -256,5 +350,6 @@ export async function buildHistory(companyId: number, periods: PeriodRef[], allo
     areas: activeAreas,
     perspectives: activePerspectives,
     indicators: visibleIndicators,
+    objectives: activeObjectives,
   };
 }

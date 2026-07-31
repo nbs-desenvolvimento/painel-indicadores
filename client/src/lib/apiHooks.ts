@@ -8,7 +8,7 @@ interface QueryResult<T> {
 
 /** trpc.dashboard.snapshot.useQuery tipado (ver @/lib/trpcApi sobre o motivo do cast). */
 export function useDashboardSnapshot(
-  input: { companyId: number; year: number; month: number },
+  input: { companyId: number; year: number; month: number; mode?: "month" | "ytd" },
   opts: { enabled: boolean },
 ): QueryResult<DashboardSnapshot> {
   return trpcApi.dashboard.snapshot.useQuery(input, opts);

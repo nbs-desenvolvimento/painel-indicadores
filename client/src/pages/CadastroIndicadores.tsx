@@ -32,7 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useApp } from "@/contexts/AppContext";
 import type { Area, CalibrationRule, Indicator, IndicatorAreaApplicability, Objective, Perspective } from "@/lib/apiTypes";
 import { trpcApi } from "@/lib/trpcApi";
-import { DIRECTION_LABELS, DIRECTIONS, SCALE_TYPE_LABELS, type Direction, type ScaleType } from "@/lib/calcEngine";
+import { DIRECTION_LABELS, DIRECTIONS, SCALE_TYPE_LABELS, SCALE_TYPES, type Direction, type ScaleType } from "@/lib/calcEngine";
 import { ArrowDown, ArrowUp, Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -68,7 +68,7 @@ interface IndicatorsApi {
           scaleType: ScaleType;
           direction: Direction;
           objectiveId: number | null;
-          calibrationRuleId: number;
+          calibrationRuleId: number | null;
           defaultGoal: number | null;
           unit: string;
           sortOrder: number;
@@ -88,7 +88,7 @@ interface IndicatorsApi {
         scaleType?: ScaleType;
         direction?: Direction;
         objectiveId?: number | null;
-        calibrationRuleId?: number;
+        calibrationRuleId?: number | null;
         defaultGoal?: number | null;
         unit?: string;
         sortOrder?: number;
@@ -272,10 +272,6 @@ export default function CadastroIndicadores() {
       toast.error("Informe o nome e a perspectiva do indicador");
       return;
     }
-    if (editing.calibrationRuleId === NONE) {
-      toast.error("Selecione a regra de calibragem do indicador");
-      return;
-    }
     const defaultGoalNum =
       editing.defaultGoal.trim() === "" ? null : Number(editing.defaultGoal.trim().replace(",", "."));
     if (defaultGoalNum !== null && Number.isNaN(defaultGoalNum)) {
@@ -289,7 +285,7 @@ export default function CadastroIndicadores() {
       scaleType: editing.scaleType,
       direction: editing.direction,
       objectiveId: editing.objectiveId === NONE ? null : parseInt(editing.objectiveId),
-      calibrationRuleId: parseInt(editing.calibrationRuleId),
+      calibrationRuleId: editing.calibrationRuleId === NONE ? null : parseInt(editing.calibrationRuleId),
       defaultGoal: defaultGoalNum,
       unit: editing.unit,
       sortOrder: editing.sortOrder,
@@ -463,6 +459,7 @@ export default function CadastroIndicadores() {
                       <SelectValue placeholder="Selecione a regra" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value={NONE}>Nenhuma — usar escala padrão (legado)</SelectItem>
                       {(rules ?? []).map((r) => (
                         <SelectItem key={r.id} value={String(r.id)}>
                           {r.name}
@@ -472,9 +469,32 @@ export default function CadastroIndicadores() {
                   </Select>
                   <p className="text-xs text-muted-foreground pt-1">
                     Converte o atingimento (Resultado ÷ Meta) em score conforme as faixas configuradas em “Regras
-                    de Calibragem”.
+                    de Calibragem”. Sem regra selecionada, o indicador usa a escala padrão abaixo.
                   </p>
                 </div>
+                {editing.calibrationRuleId === NONE && (
+                  <div className="space-y-1.5">
+                    <Label>Escala padrão (legado)</Label>
+                    <Select
+                      value={editing.scaleType}
+                      onValueChange={(v) => setEditing((p) => ({ ...p, scaleType: v as ScaleType }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SCALE_TYPES.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {SCALE_TYPE_LABELS[s]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground pt-1">
+                      Faixas fixas de atingimento aplicadas quando nenhuma regra de calibragem está vinculada.
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <Label>Sentido do indicador</Label>
                   <div className="grid grid-cols-2 gap-2">

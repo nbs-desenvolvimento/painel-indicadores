@@ -1,9 +1,14 @@
 import { DashboardEmptyState, PageSkeleton, PageToolbar, ScoreBadge } from "@/components/shared";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fmtScore, scoreColor, useApp } from "@/contexts/AppContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { MONTH_NAMES, MONTH_NAMES_SHORT, fmtScore, scoreColor, useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
+import { deriveRankingPeriod, type CalcMode, type ViewScope } from "@/lib/rankingPeriod";
 import { Medal, Trophy } from "lucide-react";
+import { useState } from "react";
 import {
   Bar,
   BarChart,
@@ -18,12 +23,88 @@ import {
 } from "recharts";
 
 export default function Ranking() {
-  const { companyId, year, month, periodLabel } = useApp();
+  const { companyId, year, periodLabel } = useApp();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+
+  const [viewScope, setViewScope] = useState<ViewScope>("ano");
+  const [calcMode, setCalcMode] = useState<CalcMode>("acumulado");
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getMonth() + 1);
+
+  const { mode, month: endMonth } = deriveRankingPeriod(viewScope, calcMode, selectedMonth, year);
+  const isCurrentRealYear = year === new Date().getFullYear();
+
   const { data: snap, isLoading } = useDashboardSnapshot(
-    { companyId: companyId ?? 0, year, month },
+    { companyId: companyId ?? 0, year, month: endMonth, mode },
     { enabled: !!companyId },
+  );
+
+  const periodSubtitle =
+    viewScope === "ano"
+      ? isCurrentRealYear
+        ? `Acumulado de Janeiro a ${MONTH_NAMES[endMonth - 1]} de ${year} (ano em andamento)`
+        : `Acumulado de Janeiro a Dezembro de ${year}`
+      : calcMode === "acumulado"
+        ? `Acumulado de Janeiro a ${MONTH_NAMES[endMonth - 1]} de ${year}`
+        : periodLabel;
+  const modeBadgeLabel =
+    viewScope === "ano"
+      ? isCurrentRealYear
+        ? `Acumulado Jan–${MONTH_NAMES_SHORT[endMonth - 1]}/${year}`
+        : `Acumulado Jan–Dez/${year}`
+      : calcMode === "acumulado"
+        ? `Acumulado Jan–${MONTH_NAMES_SHORT[endMonth - 1]}/${year}`
+        : `${MONTH_NAMES_SHORT[endMonth - 1]}/${year}`;
+
+  const periodControls = (
+    <div className="flex flex-wrap items-center gap-2">
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        size="sm"
+        value={viewScope}
+        onValueChange={(v) => v && setViewScope(v as ViewScope)}
+        className="bg-card shrink-0"
+      >
+        <ToggleGroupItem value="ano" className="whitespace-nowrap px-3">
+          Ano
+        </ToggleGroupItem>
+        <ToggleGroupItem value="mes" className="whitespace-nowrap px-3">
+          Mês
+        </ToggleGroupItem>
+      </ToggleGroup>
+      {viewScope === "mes" && (
+        <>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            value={calcMode}
+            onValueChange={(v) => v && setCalcMode(v as CalcMode)}
+            className="bg-card shrink-0"
+          >
+            <ToggleGroupItem value="acumulado" className="whitespace-nowrap px-3">
+              Acumulado
+            </ToggleGroupItem>
+            <ToggleGroupItem value="periodo" className="whitespace-nowrap px-3">
+              Período
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
+            <SelectTrigger className="w-[130px] bg-card shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MONTH_NAMES.map((m, i) => (
+                <SelectItem key={i + 1} value={String(i + 1)}>
+                  {m}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </>
+      )}
+    </div>
   );
 
   if (isLoading || !companyId) return <PageSkeleton />;
@@ -31,7 +112,15 @@ export default function Ranking() {
   if (!snap || snap.areaScores.length === 0) {
     return (
       <>
-        <PageToolbar title="Ranking de Áreas" subtitle={periodLabel} />
+        <PageToolbar
+          title="Ranking de Áreas"
+          subtitle={periodSubtitle}
+          hideMonth
+          exportMode={mode}
+          exportMonth={endMonth}
+        >
+          {periodControls}
+        </PageToolbar>
         <DashboardEmptyState
           isAdmin={isAdmin}
           adminTitle="Sem dados para exibir"
@@ -48,7 +137,16 @@ export default function Ranking() {
 
   return (
     <div className="fade-up">
-      <PageToolbar title="Ranking de Áreas" subtitle={`Classificação por desempenho total — ${periodLabel}`} showExport />
+      <PageToolbar
+        title="Ranking de Áreas"
+        subtitle={`Classificação por desempenho total — ${periodSubtitle}`}
+        showExport
+        hideMonth
+        exportMode={mode}
+        exportMonth={endMonth}
+      >
+        {periodControls}
+      </PageToolbar>
 
       {/* Pódio */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -81,14 +179,22 @@ export default function Ranking() {
         {/* Gráfico */}
         <Card className="card-elegant border-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Desempenho por área
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+              <span>Desempenho por área</span>
+              <Badge variant="outline" className="normal-case font-normal text-[11px] text-muted-foreground">
+                {modeBadgeLabel}
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div style={{ height: Math.max(340, chartData.length * 30) }}>
+            <div style={{ height: Math.max(340, chartData.length * 40) }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} layout="vertical" margin={{ left: 30, right: 56, top: 8, bottom: 8 }}>
+                <BarChart
+                  data={chartData}
+                  layout="vertical"
+                  margin={{ left: 30, right: 56, top: 8, bottom: 8 }}
+                  barCategoryGap="35%"
+                >
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="oklch(0.92 0.008 90)" />
                   <XAxis type="number" domain={[0, 120]} tickFormatter={(v) => `${v}%`} fontSize={12} />
                   <YAxis type="category" dataKey="name" width={150} fontSize={11} />
@@ -114,8 +220,11 @@ export default function Ranking() {
         {/* Tabela completa */}
         <Card className="card-elegant border-0">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Classificação completa
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+              <span>Classificação completa</span>
+              <Badge variant="outline" className="normal-case font-normal text-[11px] text-muted-foreground">
+                {modeBadgeLabel}
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto">

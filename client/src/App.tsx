@@ -14,6 +14,7 @@ import CadastroObjetivos from "./pages/CadastroObjetivos";
 import CadastroRegras from "./pages/CadastroRegras";
 import DashboardAreas from "./pages/DashboardAreas";
 import DashboardIndicadores from "./pages/DashboardIndicadores";
+import DashboardObjetivos from "./pages/DashboardObjetivos";
 import DashboardPerspectivas from "./pages/DashboardPerspectivas";
 import Evolucao from "./pages/Evolucao";
 import Heatmap from "./pages/Heatmap";
@@ -32,6 +33,7 @@ function Router() {
         <Route path={"/"} component={Home} />
         <Route path={"/dashboard/areas"} component={DashboardAreas} />
         <Route path={"/dashboard/perspectivas"} component={DashboardPerspectivas} />
+        <Route path={"/dashboard/objetivos"} component={DashboardObjetivos} />
         <Route path={"/dashboard/indicadores"} component={DashboardIndicadores} />
         <Route path={"/dashboard/evolucao"} component={Evolucao} />
         <Route path={"/dashboard/ranking"} component={Ranking} />

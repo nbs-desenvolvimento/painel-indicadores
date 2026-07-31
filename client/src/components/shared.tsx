@@ -19,22 +19,34 @@ export function PageToolbar({
   title,
   subtitle,
   showExport = false,
+  hideMonth = false,
+  exportMode = "month",
+  exportMonth,
   children,
 }: {
   title: string;
   subtitle?: string;
   showExport?: boolean;
+  /** Esconde o seletor de mês global (ex.: páginas que têm seu próprio controle de período local) */
+  hideMonth?: boolean;
+  /** Modo usado na exportação Excel: "month" (padrão) ou "ytd" (acumulado até o mês de referência) */
+  exportMode?: "month" | "ytd";
+  /** Mês de referência usado na exportação Excel; default = mês global (contexto). Use quando a página tem seu próprio período, desacoplado do seletor global. */
+  exportMonth?: number;
   children?: React.ReactNode;
 }) {
   const { companyId, setCompanyId, companies, year, setYear, month, setMonth } = useApp();
 
   const years = Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - 4 + i);
+  const refMonth = exportMonth ?? month;
 
   const handleExcel = () => {
     if (!companyId) return;
+    const suffix =
+      exportMode === "ytd" ? `acumulado-ate-${String(refMonth).padStart(2, "0")}` : String(refMonth).padStart(2, "0");
     downloadAuthedFile(
-      `/api/export/excel?companyId=${companyId}&year=${year}&month=${month}`,
-      `relatorio-indicadores-${year}-${String(month).padStart(2, "0")}.xlsx`,
+      `/api/export/excel?companyId=${companyId}&year=${year}&month=${refMonth}&mode=${exportMode}`,
+      `relatorio-indicadores-${year}-${suffix}.xlsx`,
     ).catch((e) => toast.error(e.message));
   };
 
@@ -64,18 +76,20 @@ export function PageToolbar({
               </SelectContent>
             </Select>
           )}
-          <Select value={String(month)} onValueChange={(v) => setMonth(parseInt(v))}>
-            <SelectTrigger className="w-[130px] bg-card">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MONTH_NAMES.map((m, i) => (
-                <SelectItem key={i + 1} value={String(i + 1)}>
-                  {m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!hideMonth && (
+            <Select value={String(month)} onValueChange={(v) => setMonth(parseInt(v))}>
+              <SelectTrigger className="w-[130px] bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTH_NAMES.map((m, i) => (
+                  <SelectItem key={i + 1} value={String(i + 1)}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v))}>
             <SelectTrigger className="w-[100px] bg-card">
               <SelectValue />
