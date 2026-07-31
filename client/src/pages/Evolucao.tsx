@@ -53,7 +53,7 @@ export default function Evolucao() {
 
   if (isLoading || !companyId) return <PageSkeleton />;
 
-  if (!history || history.areas.length === 0) {
+  if (!history || (history.areas ?? []).length === 0) {
     return (
       <>
         <PageToolbar title="Evolução Mensal" subtitle={periodLabel} />
@@ -66,7 +66,7 @@ export default function Evolucao() {
     );
   }
 
-  const labels = history.periods.map((p) => `${MONTH_NAMES_SHORT[p.month - 1]}/${String(p.year).slice(2)}`);
+  const labels = (history.periods ?? []).map((p) => `${MONTH_NAMES_SHORT[p.month - 1]}/${String(p.year).slice(2)}`);
 
   /* ---- séries por modo ---- */
   let series: { key: string; name: string }[] = [];
@@ -74,12 +74,12 @@ export default function Evolucao() {
 
   if (mode === "areas") {
     const filter = selectedIds.areas;
-    const shown = filter === "all" ? history.areas : history.areas.filter((a) => String(a.id) === filter);
+    const shown = filter === "all" ? (history.areas ?? []) : (history.areas ?? []).filter((a) => String(a.id) === filter);
     series = shown.map((a) => ({ key: `a${a.id}`, name: a.name }));
-    chartData = history.periods.map((p, idx) => {
+    chartData = (history.periods ?? []).map((p, idx) => {
       const row: Record<string, unknown> = { label: labels[idx] };
       for (const a of shown) {
-        const s = p.areaScores.find((x) => x.areaId === a.id);
+        const s = (p.areaScores ?? []).find((x) => x.areaId === a.id);
         row[`a${a.id}`] = s && s.total > 0 ? Math.round(s.total * 1000) / 10 : s?.total === 0 ? 0 : null;
       }
       return row;
@@ -87,13 +87,13 @@ export default function Evolucao() {
   } else if (mode === "perspectivas") {
     // média da perspectiva no "GRUPO" (primeira área) ou média geral das áreas
     const filter = selectedIds.perspectivas;
-    const shown = filter === "all" ? history.perspectives : history.perspectives.filter((p) => String(p.id) === filter);
+    const shown = filter === "all" ? (history.perspectives ?? []) : (history.perspectives ?? []).filter((p) => String(p.id) === filter);
     series = shown.map((p) => ({ key: `p${p.id}`, name: p.name }));
-    chartData = history.periods.map((p, idx) => {
+    chartData = (history.periods ?? []).map((p, idx) => {
       const row: Record<string, unknown> = { label: labels[idx] };
       for (const persp of shown) {
         // média da perspectiva entre todas as áreas (média das médias não-nulas)
-        const vals = p.areaScores
+        const vals = (p.areaScores ?? [])
           .map((a) => a.perspectives.find((x) => x.perspectiveId === persp.id)?.average)
           .filter((v): v is number => v !== null && v !== undefined);
         row[`p${persp.id}`] = vals.length > 0 ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 1000) / 10 : null;
@@ -103,24 +103,24 @@ export default function Evolucao() {
   } else if (mode === "objetivos") {
     // Score do objetivo na empresa (sem quebra por área) — mesma lógica do Dashboard por Objetivo
     const filter = selectedIds.objetivos;
-    const shown = filter === "all" ? history.objectives : history.objectives.filter((o) => String(o.id) === filter);
+    const shown = filter === "all" ? (history.objectives ?? []) : (history.objectives ?? []).filter((o) => String(o.id) === filter);
     series = shown.map((o) => ({ key: `o${o.id}`, name: o.name }));
-    chartData = history.periods.map((p, idx) => {
+    chartData = (history.periods ?? []).map((p, idx) => {
       const row: Record<string, unknown> = { label: labels[idx] };
       for (const obj of shown) {
-        const s = p.objectiveScores.find((x) => x.objectiveId === obj.id);
+        const s = (p.objectiveScores ?? []).find((x) => x.objectiveId === obj.id);
         row[`o${obj.id}`] = s?.average !== null && s?.average !== undefined ? Math.round(s.average * 1000) / 10 : null;
       }
       return row;
     });
   } else {
     const filter = selectedIds.indicadores;
-    const shown = filter === "all" ? history.indicators : history.indicators.filter((i) => String(i.id) === filter);
+    const shown = filter === "all" ? (history.indicators ?? []) : (history.indicators ?? []).filter((i) => String(i.id) === filter);
     series = shown.map((i) => ({ key: `i${i.id}`, name: i.name }));
-    chartData = history.periods.map((p, idx) => {
+    chartData = (history.periods ?? []).map((p, idx) => {
       const row: Record<string, unknown> = { label: labels[idx] };
       for (const ind of shown) {
-        const s = p.indicatorScores.find((x) => x.indicatorId === ind.id);
+        const s = (p.indicatorScores ?? []).find((x) => x.indicatorId === ind.id);
         row[`i${ind.id}`] = s?.score !== null && s?.score !== undefined ? Math.round(s.score * 1000) / 10 : null;
       }
       return row;
@@ -129,12 +129,12 @@ export default function Evolucao() {
 
   const selectorOptions =
     mode === "areas"
-      ? [{ id: "all", name: "Todas as áreas" }, ...history.areas.map((a) => ({ id: String(a.id), name: a.name }))]
+      ? [{ id: "all", name: "Todas as áreas" }, ...(history.areas ?? []).map((a) => ({ id: String(a.id), name: a.name }))]
       : mode === "perspectivas"
-        ? [{ id: "all", name: "Todas as perspectivas" }, ...history.perspectives.map((p) => ({ id: String(p.id), name: p.name }))]
+        ? [{ id: "all", name: "Todas as perspectivas" }, ...(history.perspectives ?? []).map((p) => ({ id: String(p.id), name: p.name }))]
         : mode === "objetivos"
-          ? [{ id: "all", name: "Todos os objetivos" }, ...history.objectives.map((o) => ({ id: String(o.id), name: o.name }))]
-          : [{ id: "all", name: "Todos os indicadores" }, ...history.indicators.map((i) => ({ id: String(i.id), name: i.name }))];
+          ? [{ id: "all", name: "Todos os objetivos" }, ...(history.objectives ?? []).map((o) => ({ id: String(o.id), name: o.name }))]
+          : [{ id: "all", name: "Todos os indicadores" }, ...(history.indicators ?? []).map((i) => ({ id: String(i.id), name: i.name }))];
 
   const currentSelection = selectedIds[mode];
 

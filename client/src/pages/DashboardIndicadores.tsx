@@ -239,7 +239,7 @@ function SingleIndicatorView({
   const persp = (snap.perspectives ?? []).find((p) => p.id === selected.perspectiveId);
 
   const histData = (history?.periods ?? []).map((p) => {
-    const ind = p.indicatorScores.find((i) => i.indicatorId === selected.id);
+    const ind = (p.indicatorScores ?? []).find((i) => i.indicatorId === selected.id);
     return {
       label: `${MONTH_NAMES_SHORT[p.month - 1]}/${String(p.year).slice(2)}`,
       meta: ind?.goal ?? null,
@@ -417,7 +417,7 @@ function IndicatorGroupView({
     .sort((a, b) => b.score - a.score);
 
   const histData = (history?.periods ?? []).map((p) => {
-    const periodScores = p.indicatorScores.filter((s) => indIds.has(s.indicatorId));
+    const periodScores = (p.indicatorScores ?? []).filter((s) => indIds.has(s.indicatorId));
     const avg = averageScore(periodScores.map((s) => s.score));
     return {
       label: `${MONTH_NAMES_SHORT[p.month - 1]}/${String(p.year).slice(2)}`,

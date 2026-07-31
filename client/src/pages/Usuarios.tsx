@@ -186,8 +186,8 @@ export default function Usuarios() {
       email: u.email,
       password: "",
       role: u.role,
-      areaIds: new Set(u.areaIds),
-      companyIds: new Set(u.companyIds),
+      areaIds: new Set(u.areaIds ?? []),
+      companyIds: new Set(u.companyIds ?? []),
     });
     setDialogOpen(true);
   };
@@ -314,19 +314,19 @@ export default function Usuarios() {
                       <td className="py-2.5 px-2 text-xs">
                         {u.role === "admin" ? (
                           <span className="text-muted-foreground">Todas</span>
-                        ) : u.companyIds.length === 0 ? (
+                        ) : (u.companyIds ?? []).length === 0 ? (
                           <span className="text-muted-foreground italic">Nenhuma</span>
                         ) : (
-                          u.companyIds.map((id) => companyName.get(id) ?? "?").join(", ")
+                          (u.companyIds ?? []).map((id) => companyName.get(id) ?? "?").join(", ")
                         )}
                       </td>
                       <td className="py-2.5 px-2 text-xs">
                         {u.role === "admin" ? (
                           <span className="text-muted-foreground">Todas</span>
-                        ) : u.areaIds.length === 0 ? (
+                        ) : (u.areaIds ?? []).length === 0 ? (
                           <span className="text-muted-foreground italic">Nenhuma</span>
                         ) : (
-                          `${u.areaIds.length} área${u.areaIds.length > 1 ? "s" : ""}`
+                          `${(u.areaIds ?? []).length} área${(u.areaIds ?? []).length > 1 ? "s" : ""}`
                         )}
                       </td>
                       <td className="py-2.5 px-2 text-center">

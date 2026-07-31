@@ -41,21 +41,21 @@ export default function DashboardAreas() {
   useEffect(() => {
     if (!snap) return;
     if (!initialized) {
-      if (selectedAreaIds.length === 0 && snap.areas.length > 0) {
-        setSelectedAreaIds([snap.areas[0].id]);
+      if (selectedAreaIds.length === 0 && (snap.areas ?? []).length > 0) {
+        setSelectedAreaIds([(snap.areas ?? [])[0].id]);
       }
       setInitialized(true);
       return;
     }
-    const validIds = selectedAreaIds.filter((id) => snap.areas.some((a) => a.id === id));
+    const validIds = selectedAreaIds.filter((id) => (snap.areas ?? []).some((a) => a.id === id));
     if (validIds.length !== selectedAreaIds.length) {
-      setSelectedAreaIds(validIds.length > 0 ? validIds : snap.areas.length > 0 ? [snap.areas[0].id] : []);
+      setSelectedAreaIds(validIds.length > 0 ? validIds : (snap.areas ?? []).length > 0 ? [(snap.areas ?? [])[0].id] : []);
     }
   }, [snap, initialized, selectedAreaIds]);
 
   if (isLoading || !companyId) return <PageSkeleton />;
 
-  if (!snap || snap.areas.length === 0) {
+  if (!snap || (snap.areas ?? []).length === 0) {
     return (
       <>
         <PageToolbar title="Dashboard por Área" subtitle={periodLabel} />
@@ -78,9 +78,9 @@ export default function DashboardAreas() {
     });
   };
 
-  const selectAll = () => setSelectedAreaIds(snap.areas.map((a) => a.id));
-  const selectedAreas = snap.areas.filter((a) => selectedAreaIds.includes(a.id));
-  const allSelected = selectedAreaIds.length === snap.areas.length;
+  const selectAll = () => setSelectedAreaIds((snap.areas ?? []).map((a) => a.id));
+  const selectedAreas = (snap.areas ?? []).filter((a) => selectedAreaIds.includes(a.id));
+  const allSelected = selectedAreaIds.length === (snap.areas ?? []).length;
   const triggerLabel = allSelected
     ? "Todas as áreas"
     : selectedAreas.length === 1
@@ -106,7 +106,7 @@ export default function DashboardAreas() {
               Selecionar todas
             </button>
             <div className="max-h-72 overflow-y-auto mt-1">
-              {snap.areas.map((a) => (
+              {(snap.areas ?? []).map((a) => (
                 <label
                   key={a.id}
                   className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
@@ -130,13 +130,13 @@ export default function DashboardAreas() {
 }
 
 function SingleAreaView({ area, snap }: { area: Area; snap: DashboardSnapshot }) {
-  const areaScore = snap.areaScores.find((a) => a.areaId === area.id);
-  const perspName = new Map(snap.perspectives.map((p) => [p.id, p.name]));
-  const perspColor = new Map(snap.perspectives.map((p) => [p.id, p.color || "#1e3a5f"]));
+  const areaScore = (snap.areaScores ?? []).find((a) => a.areaId === area.id);
+  const perspName = new Map((snap.perspectives ?? []).map((p) => [p.id, p.name]));
+  const perspColor = new Map((snap.perspectives ?? []).map((p) => [p.id, p.color || "#1e3a5f"]));
   const applSet = new Set(
-    snap.applicability.filter((x) => x.applicable).map((x) => `${x.indicatorId}:${x.areaId}`),
+    (snap.applicability ?? []).filter((x) => x.applicable).map((x) => `${x.indicatorId}:${x.areaId}`),
   );
-  const applicableInds = snap.indicatorScores.filter((i) => applSet.has(`${i.indicatorId}:${area.id}`));
+  const applicableInds = (snap.indicatorScores ?? []).filter((i) => applSet.has(`${i.indicatorId}:${area.id}`));
 
   if (!areaScore) return null;
 
@@ -198,7 +198,7 @@ function SingleAreaView({ area, snap }: { area: Area; snap: DashboardSnapshot })
             </thead>
             <tbody>
               {applicableInds.map((i) => {
-                const ind = snap.indicators.find((x) => x.id === i.indicatorId);
+                const ind = (snap.indicators ?? []).find((x) => x.id === i.indicatorId);
                 return (
                   <tr key={i.indicatorId} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="py-2 pr-2">
@@ -236,7 +236,7 @@ function AreaGroupView({
   areas: Area[];
   onSelectArea: (id: number) => void;
 }) {
-  const scores = areas.map((a) => snap.areaScores.find((x) => x.areaId === a.id)).filter((s) => s !== undefined);
+  const scores = areas.map((a) => (snap.areaScores ?? []).find((x) => x.areaId === a.id)).filter((s) => s !== undefined);
   const groupAverage = averageScore(scores.map((s) => s.total));
 
   const barData = scores
@@ -249,7 +249,7 @@ function AreaGroupView({
         <Card className="card-elegant border-0 lg:col-span-2">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-serif">
-              {areas.length === snap.areas.length ? "Todas as áreas" : `${areas.length} áreas selecionadas`}
+              {areas.length === (snap.areas ?? []).length ? "Todas as áreas" : `${areas.length} áreas selecionadas`}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
@@ -307,7 +307,7 @@ function AreaGroupView({
               <thead>
                 <tr className="border-b text-muted-foreground text-xs uppercase tracking-wide">
                   <th className="text-left py-2 pr-2 font-medium">Área</th>
-                  {snap.perspectives.map((p) => (
+                  {(snap.perspectives ?? []).map((p) => (
                     <th key={p.id} className="text-center py-2 px-2 font-medium">
                       {p.name.split(" ")[0]}
                     </th>

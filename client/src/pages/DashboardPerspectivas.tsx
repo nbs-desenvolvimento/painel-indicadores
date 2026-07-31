@@ -41,17 +41,17 @@ export default function DashboardPerspectivas() {
   useEffect(() => {
     if (!snap) return;
     if (perspectiveId === null) {
-      if (snap.perspectives.length > 0) setPerspectiveId(snap.perspectives[0].id);
+      if ((snap.perspectives ?? []).length > 0) setPerspectiveId((snap.perspectives ?? [])[0].id);
       return;
     }
-    if (typeof perspectiveId === "number" && !snap.perspectives.some((p) => p.id === perspectiveId)) {
-      setPerspectiveId(snap.perspectives.length > 0 ? snap.perspectives[0].id : ALL);
+    if (typeof perspectiveId === "number" && !(snap.perspectives ?? []).some((p) => p.id === perspectiveId)) {
+      setPerspectiveId((snap.perspectives ?? []).length > 0 ? (snap.perspectives ?? [])[0].id : ALL);
     }
   }, [snap, perspectiveId]);
 
   if (isLoading || !companyId) return <PageSkeleton />;
 
-  if (!snap || snap.perspectives.length === 0 || snap.areas.length === 0) {
+  if (!snap || (snap.perspectives ?? []).length === 0 || (snap.areas ?? []).length === 0) {
     return (
       <>
         <PageToolbar title="Dashboard por Perspectiva" subtitle={periodLabel} />
@@ -64,7 +64,7 @@ export default function DashboardPerspectivas() {
     );
   }
 
-  const selected = typeof perspectiveId === "number" ? snap.perspectives.find((p) => p.id === perspectiveId) : undefined;
+  const selected = typeof perspectiveId === "number" ? (snap.perspectives ?? []).find((p) => p.id === perspectiveId) : undefined;
 
   return (
     <div className="fade-up">
@@ -78,7 +78,7 @@ export default function DashboardPerspectivas() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>Todas as perspectivas</SelectItem>
-            {snap.perspectives.map((p) => (
+            {(snap.perspectives ?? []).map((p) => (
               <SelectItem key={p.id} value={String(p.id)}>
                 {p.name}
               </SelectItem>
@@ -94,10 +94,10 @@ export default function DashboardPerspectivas() {
 }
 
 function SinglePerspectiveView({ selected, snap }: { selected: Perspective; snap: DashboardSnapshot }) {
-  const perspInds = snap.indicatorScores.filter((i) => i.perspectiveId === selected.id);
+  const perspInds = (snap.indicatorScores ?? []).filter((i) => i.perspectiveId === selected.id);
 
   // Desempenho da perspectiva em cada área (média × peso)
-  const areaData = snap.areaScores
+  const areaData = (snap.areaScores ?? [])
     .map((a) => {
       const p = a.perspectives.find((x) => x.perspectiveId === selected.id);
       return {
@@ -132,7 +132,7 @@ function SinglePerspectiveView({ selected, snap }: { selected: Perspective; snap
               </thead>
               <tbody>
                 {perspInds.map((i) => {
-                  const ind = snap.indicators.find((x) => x.id === i.indicatorId);
+                  const ind = (snap.indicators ?? []).find((x) => x.id === i.indicatorId);
                   return (
                     <tr key={i.indicatorId} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                       <td className="py-2 pr-2 font-medium">{i.name}</td>
@@ -198,7 +198,7 @@ function SinglePerspectiveView({ selected, snap }: { selected: Perspective; snap
               </tr>
             </thead>
             <tbody>
-              {snap.areaScores.map((a) => {
+              {(snap.areaScores ?? []).map((a) => {
                 const p = a.perspectives.find((x) => x.perspectiveId === selected.id);
                 if (!p) return null;
                 return (
@@ -228,8 +228,8 @@ function PerspectiveGroupView({
   onSelectPerspective: (id: number) => void;
 }) {
   // Média do "average" da perspectiva (média dos indicadores, antes do peso) entre todas as áreas em que se aplica
-  const perspAverages = snap.perspectives.map((persp) => {
-    const vals = snap.areaScores.map((a) => a.perspectives.find((p) => p.perspectiveId === persp.id)?.average ?? null);
+  const perspAverages = (snap.perspectives ?? []).map((persp) => {
+    const vals = (snap.areaScores ?? []).map((a) => a.perspectives.find((p) => p.perspectiveId === persp.id)?.average ?? null);
     return { perspective: persp, average: averageScore(vals) };
   });
 
@@ -245,7 +245,7 @@ function PerspectiveGroupView({
           <CardTitle className="text-lg font-serif">Todas as perspectivas</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Comparação de desempenho entre as {snap.perspectives.length} perspectivas estratégicas.
+          Comparação de desempenho entre as {(snap.perspectives ?? []).length} perspectivas estratégicas.
         </CardContent>
       </Card>
 
@@ -314,7 +314,7 @@ function PerspectiveGroupView({
               <thead>
                 <tr className="border-b text-muted-foreground text-xs uppercase tracking-wide">
                   <th className="text-left py-2 pr-2 font-medium">Área</th>
-                  {snap.perspectives.map((p) => (
+                  {(snap.perspectives ?? []).map((p) => (
                     <th key={p.id} className="text-center py-2 px-2 font-medium">
                       <button
                         type="button"
@@ -329,7 +329,7 @@ function PerspectiveGroupView({
                 </tr>
               </thead>
               <tbody>
-                {snap.areaScores.map((a) => (
+                {(snap.areaScores ?? []).map((a) => (
                   <tr key={a.areaId} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="py-2 pr-2 font-medium">{a.areaName}</td>
                     {a.perspectives.map((p) => (

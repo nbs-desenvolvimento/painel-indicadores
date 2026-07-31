@@ -54,17 +54,17 @@ export default function DashboardObjetivos() {
   useEffect(() => {
     if (!snap) return;
     if (objectiveId === null) {
-      if (snap.objectives.length > 0) setObjectiveId(snap.objectives[0].id);
+      if ((snap.objectives ?? []).length > 0) setObjectiveId((snap.objectives ?? [])[0].id);
       return;
     }
-    if (typeof objectiveId === "number" && !snap.objectives.some((o) => o.id === objectiveId)) {
-      setObjectiveId(snap.objectives.length > 0 ? snap.objectives[0].id : ALL);
+    if (typeof objectiveId === "number" && !(snap.objectives ?? []).some((o) => o.id === objectiveId)) {
+      setObjectiveId((snap.objectives ?? []).length > 0 ? (snap.objectives ?? [])[0].id : ALL);
     }
   }, [snap, objectiveId]);
 
   if (isLoading || !companyId) return <PageSkeleton />;
 
-  if (!snap || snap.objectives.length === 0) {
+  if (!snap || (snap.objectives ?? []).length === 0) {
     return (
       <>
         <PageToolbar title="Dashboard por Objetivo" subtitle={periodLabel} />
@@ -77,24 +77,24 @@ export default function DashboardObjetivos() {
     );
   }
 
-  const orderedPerspectives = [...snap.perspectives].sort((a, b) => a.sortOrder - b.sortOrder);
-  const selected = typeof objectiveId === "number" ? snap.objectives.find((o) => o.id === objectiveId) : undefined;
-  const selectedPersp = snap.perspectives.find((p) => p.id === selected?.perspectiveId);
+  const orderedPerspectives = [...(snap.perspectives ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+  const selected = typeof objectiveId === "number" ? (snap.objectives ?? []).find((o) => o.id === objectiveId) : undefined;
+  const selectedPersp = (snap.perspectives ?? []).find((p) => p.id === selected?.perspectiveId);
 
-  const objIndicators = snap.indicators.filter((i) => i.objectiveId === objectiveId);
+  const objIndicators = (snap.indicators ?? []).filter((i) => i.objectiveId === objectiveId);
   const objIndicatorIds = new Set(objIndicators.map((i) => i.id));
-  const objIndicatorScores = snap.indicatorScores.filter((i) => objIndicatorIds.has(i.indicatorId));
-  const objectiveScore = snap.objectiveScores.find((o) => o.objectiveId === objectiveId);
+  const objIndicatorScores = (snap.indicatorScores ?? []).filter((i) => objIndicatorIds.has(i.indicatorId));
+  const objectiveScore = (snap.objectiveScores ?? []).find((o) => o.objectiveId === objectiveId);
 
   const applicableAreaIds = new Set(
-    snap.applicability.filter((a) => a.applicable && objIndicatorIds.has(a.indicatorId)).map((a) => a.areaId),
+    (snap.applicability ?? []).filter((a) => a.applicable && objIndicatorIds.has(a.indicatorId)).map((a) => a.areaId),
   );
-  const applicableAreas = snap.areas.filter((a) => applicableAreaIds.has(a.id));
+  const applicableAreas = (snap.areas ?? []).filter((a) => applicableAreaIds.has(a.id));
 
   // Score do objetivo em cada área
-  const areaData = snap.areaScores
+  const areaData = (snap.areaScores ?? [])
     .map((a) => {
-      const os = snap.objectiveScoresByArea.find((x) => x.areaId === a.areaId && x.objectiveId === objectiveId);
+      const os = (snap.objectiveScoresByArea ?? []).find((x) => x.areaId === a.areaId && x.objectiveId === objectiveId);
       return {
         name: a.areaName,
         average: os?.average !== null && os?.average !== undefined ? Math.round(os.average * 1000) / 10 : null,
@@ -104,14 +104,13 @@ export default function DashboardObjetivos() {
     .sort((a, b) => (b.average ?? 0) - (a.average ?? 0));
 
   // Evolução do score do objetivo nos últimos 12 meses
-  const histData =
-    history?.periods.map((p) => {
-      const os = p.objectiveScores.find((x) => x.objectiveId === objectiveId);
-      return {
-        label: `${MONTH_NAMES_SHORT[p.month - 1]}/${String(p.year).slice(2)}`,
-        score: os?.average !== null && os?.average !== undefined ? Math.round(os.average * 1000) / 10 : null,
-      };
-    }) ?? [];
+  const histData = (history?.periods ?? []).map((p) => {
+    const os = (p.objectiveScores ?? []).find((x) => x.objectiveId === objectiveId);
+    return {
+      label: `${MONTH_NAMES_SHORT[p.month - 1]}/${String(p.year).slice(2)}`,
+      score: os?.average !== null && os?.average !== undefined ? Math.round(os.average * 1000) / 10 : null,
+    };
+  });
 
   return (
     <div className="fade-up">
@@ -126,7 +125,7 @@ export default function DashboardObjetivos() {
           <SelectContent>
             <SelectItem value={ALL}>Todos os objetivos</SelectItem>
             {orderedPerspectives.map((p) => {
-              const objs = snap.objectives.filter((o) => o.perspectiveId === p.id).sort((a, b) => a.sortOrder - b.sortOrder);
+              const objs = (snap.objectives ?? []).filter((o) => o.perspectiveId === p.id).sort((a, b) => a.sortOrder - b.sortOrder);
               if (objs.length === 0) return null;
               return (
                 <SelectGroup key={p.id}>
@@ -224,7 +223,7 @@ export default function DashboardObjetivos() {
                       </thead>
                       <tbody>
                         {objIndicatorScores.map((i) => {
-                          const ind = snap.indicators.find((x) => x.id === i.indicatorId);
+                          const ind = (snap.indicators ?? []).find((x) => x.id === i.indicatorId);
                           return (
                             <tr key={i.indicatorId} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                               <td className="py-2 pr-2 font-medium">{i.name}</td>
@@ -335,17 +334,17 @@ function ObjectiveGroupView({
   snap: DashboardSnapshot;
   onSelectObjective: (id: number) => void;
 }) {
-  const perspColor = new Map(snap.perspectives.map((p) => [p.id, p.color || "#1e3a5f"]));
-  const perspName = new Map(snap.perspectives.map((p) => [p.id, p.name]));
-  const orderedPerspectives = [...snap.perspectives].sort((a, b) => a.sortOrder - b.sortOrder);
+  const perspColor = new Map((snap.perspectives ?? []).map((p) => [p.id, p.color || "#1e3a5f"]));
+  const perspName = new Map((snap.perspectives ?? []).map((p) => [p.id, p.name]));
+  const orderedPerspectives = [...(snap.perspectives ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
 
   const rows = orderedPerspectives.flatMap((p) =>
-    snap.objectives
+    (snap.objectives ?? [])
       .filter((o) => o.perspectiveId === p.id)
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((o) => {
-        const score = snap.objectiveScores.find((x) => x.objectiveId === o.id);
-        const indCount = snap.indicators.filter((i) => i.objectiveId === o.id).length;
+        const score = (snap.objectiveScores ?? []).find((x) => x.objectiveId === o.id);
+        const indCount = (snap.indicators ?? []).filter((i) => i.objectiveId === o.id).length;
         return { objective: o, average: score?.average ?? null, indCount };
       }),
   );
@@ -362,7 +361,7 @@ function ObjectiveGroupView({
           <CardTitle className="text-lg font-serif">Todos os objetivos</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Comparação de desempenho entre os {snap.objectives.length} objetivos estratégicos.
+          Comparação de desempenho entre os {(snap.objectives ?? []).length} objetivos estratégicos.
         </CardContent>
       </Card>
 
