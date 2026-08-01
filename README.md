@@ -1,4 +1,4 @@
-# Painel de Gestão por Indicadores
+# Painel de Gestão Baseada em Desempenho  
 
 Aplicação de gestão de indicadores (Balanced Scorecard): cadastro de empresas, áreas (com
 hierarquia/organograma), perspectivas, objetivos, indicadores e regras de calibragem; lançamento

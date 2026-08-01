@@ -1,4 +1,5 @@
-import { PageSkeleton } from "@/components/shared";
+import { PageSkeleton, PageToolbar } from "@/components/shared";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -21,9 +22,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useApp } from "@/contexts/AppContext";
 import type { Company } from "@/lib/apiTypes";
+import { confirmCompanySwitch } from "@/lib/confirmCompanySwitch";
 import { trpcApi } from "@/lib/trpcApi";
-import { Building2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Building2, Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -60,6 +63,7 @@ interface CompaniesApi {
 export default function CadastroEmpresas() {
   const api = trpcApi as CompaniesApi;
   const utils = api.useUtils();
+  const { companyId, setCompanyId } = useApp();
   const { data: companies, isLoading } = api.companies.list.useQuery();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<{ id: number | null; name: string; cnpj: string }>({
@@ -68,6 +72,13 @@ export default function CadastroEmpresas() {
     cnpj: "",
   });
   const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const handleSelect = async (c: Company) => {
+    if (c.id === companyId) return;
+    const currentName = companies?.find((x) => x.id === companyId)?.name;
+    const ok = await confirmCompanySwitch(currentName, c.name);
+    if (ok) setCompanyId(c.id);
+  };
 
   const createMut = api.companies.create.useMutation({
     onSuccess: () => {
@@ -110,11 +121,7 @@ export default function CadastroEmpresas() {
 
   return (
     <div className="fade-up">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="page-title font-serif text-3xl">Empresas</h1>
-          <p className="text-sm text-muted-foreground mt-1">Cadastro e gestão das empresas do grupo</p>
-        </div>
+      <PageToolbar title="Empresas" subtitle="Cadastro e gestão das empresas do grupo" hideMonth hideYear>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditing({ id: null, name: "", cnpj: "" })}>
@@ -153,43 +160,61 @@ export default function CadastroEmpresas() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageToolbar>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {companies?.map((c) => (
-          <Card key={c.id} className="card-elegant border-0">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Building2 className="h-4 w-4 text-accent" />
-                {c.name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">{c.cnpj || "CNPJ não informado"}</p>
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => {
-                    setEditing({ id: c.id, name: c.name, cnpj: c.cnpj || "" });
-                    setDialogOpen(true);
-                  }}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive"
-                  onClick={() => setDeleteId(c.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {companies?.map((c) => {
+          const isActive = c.id === companyId;
+          return (
+            <Card
+              key={c.id}
+              className={`card-elegant border-0 ${isActive ? "ring-2 ring-primary/60" : ""}`}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center justify-between gap-2 text-base">
+                  <span className="flex items-center gap-2 truncate">
+                    <Building2 className="h-4 w-4 text-accent shrink-0" />
+                    <span className="truncate">{c.name}</span>
+                  </span>
+                  {isActive && (
+                    <Badge className="bg-primary/15 text-primary border-0 shrink-0">
+                      <Check className="h-3 w-3 mr-1" /> Ativa
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">{c.cnpj || "CNPJ não informado"}</p>
+                <div className="flex items-center gap-1 shrink-0">
+                  {!isActive && (
+                    <Button variant="outline" size="sm" className="h-8" onClick={() => handleSelect(c)}>
+                      Selecionar
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      setEditing({ id: c.id, name: c.name, cnpj: c.cnpj || "" });
+                      setDialogOpen(true);
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive"
+                    onClick={() => setDeleteId(c.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>

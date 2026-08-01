@@ -1,4 +1,4 @@
-import { PageSkeleton } from "@/components/shared";
+import { PageSkeleton, PageToolbar } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -173,13 +173,12 @@ export default function CadastroObjetivos() {
 
   return (
     <div className="fade-up">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="page-title font-serif text-3xl">Objetivos Estratégicos</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Hierarquia: perspectivas → objetivos → indicadores → metas. Cada indicador é vinculado a um objetivo.
-          </p>
-        </div>
+      <PageToolbar
+        title="Objetivos Estratégicos"
+        subtitle="Hierarquia: perspectivas → objetivos → indicadores → metas. Cada indicador é vinculado a um objetivo."
+        hideMonth
+        hideYear
+      >
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button
@@ -254,7 +253,7 @@ export default function CadastroObjetivos() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageToolbar>
 
       <div className="space-y-6">
         {orderedPerspectives.map((p) => {

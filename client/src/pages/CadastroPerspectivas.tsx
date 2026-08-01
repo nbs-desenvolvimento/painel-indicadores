@@ -1,4 +1,4 @@
-import { PageSkeleton } from "@/components/shared";
+import { PageSkeleton, PageToolbar } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -156,13 +156,12 @@ export default function CadastroPerspectivas() {
 
   return (
     <div className="fade-up">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="page-title font-serif text-3xl">Perspectivas</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Perspectivas estratégicas do Balanced Scorecard (ex.: Financeira, Mercado e Clientes)
-          </p>
-        </div>
+      <PageToolbar
+        title="Perspectivas"
+        subtitle="Perspectivas estratégicas do Balanced Scorecard (ex.: Financeira, Mercado e Clientes)"
+        hideMonth
+        hideYear
+      >
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button
@@ -221,7 +220,7 @@ export default function CadastroPerspectivas() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageToolbar>
 
       <Card className="card-elegant border-0">
         <CardContent className="pt-6 overflow-x-auto">

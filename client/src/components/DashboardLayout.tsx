@@ -28,6 +28,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
+import { confirmCompanySwitch } from "@/lib/confirmCompanySwitch";
 import {
   BarChart3,
   Building2,
@@ -135,18 +136,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-3">
             <img
               src="/logo-painel-branco.png"
-              alt="Painel de Gestão por Indicadores"
+              alt="Painel de Gestão Baseada em Desempenho  "
               className="h-10 w-10 object-contain shrink-0"
             />
-            <span className="font-semibold text-lg tracking-tight">Painel de Gestão por Indicadores</span>
+            <span className="font-semibold text-lg tracking-tight">Painel de Gestão Baseada em Desempenho  </span>
           </div>
           <div>
             <h2 className="font-serif text-4xl xl:text-5xl leading-tight mb-6">
               Gestão de desempenho<br />com precisão executiva.
             </h2>
             <p className="text-sidebar-foreground/70 max-w-md leading-relaxed">
-              Acompanhe metas, resultados e o desempenho de cada área por perspectiva estratégica —
-              com o mesmo rigor de cálculo da sua planilha, em dashboards elegantes.
+              Transforme estratégia em resultados. Alinhe pessoas, objetivos e indicadores para impulsionar resultados consistentes e uma cultura de alta performance.
             </p>
           </div>
           <div className="flex items-center justify-between gap-4">
@@ -168,16 +168,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="flex flex-col items-center gap-4">
                 <img
                   src="/logo-painel-azul.png"
-                  alt="Painel de Gestão por Indicadores"
+                  alt="Painel de Gestão Baseada em Desempenho  "
                   className="h-16 w-16 object-contain lg:hidden dark:hidden"
                 />
                 <img
                   src="/logo-painel-branco.png"
-                  alt="Painel de Gestão por Indicadores"
+                  alt="Painel de Gestão Baseada em Desempenho  "
                   className="h-16 w-16 object-contain lg:hidden hidden dark:block"
                 />
                 <h1 className="text-2xl font-semibold tracking-tight text-center">
-                  Acesse o Painel de Gestão por Indicadores
+                  Acesse o Painel de Gestão Baseada em Desempenho  
                 </h1>
                 <p className="text-sm text-muted-foreground text-center max-w-sm">
                   Faça login para acessar os dashboards, lançamentos e cadastros do sistema de gestão de desempenho.
@@ -340,13 +340,13 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
             <div className="flex flex-col items-center gap-2 w-full px-1">
               <img
                 src="/logo-painel-branco.png"
-                alt="Painel de Gestão por Indicadores"
+                alt="Painel de Gestão Baseada em Desempenho  "
                 className="h-8 w-8 object-contain shrink-0"
               />
               {!isCollapsed ? (
                 <>
                   <span className="font-semibold tracking-tight text-center text-sm leading-tight text-sidebar-foreground">
-                    Painel de Gestão por Indicadores
+                    Painel de Gestão Baseada em Desempenho  
                   </span>
                   {activeCompanyName && (
                     <span className="text-[10px] text-sidebar-foreground/40 truncate max-w-full">
@@ -408,24 +408,36 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
                   <ChevronsUpDown className="h-4 w-4 text-sidebar-foreground/40 shrink-0 group-data-[collapsible=icon]:hidden" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent
+                align="end"
+                side="top"
+                className="w-56 bg-sidebar text-sidebar-foreground border-sidebar-border"
+              >
                 {companies && companies.length > 1 && (
                   <>
-                    <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
-                      Empresa
+                    <DropdownMenuLabel className="text-xs text-sidebar-foreground/60 font-normal">
+                      Troca de empresa
                     </DropdownMenuLabel>
                     {companies.map((c) => (
-                      <DropdownMenuItem key={c.id} onClick={() => setCompanyId(c.id)} className="cursor-pointer">
+                      <DropdownMenuItem
+                        key={c.id}
+                        onClick={async () => {
+                          if (c.id === companyId) return;
+                          const ok = await confirmCompanySwitch(activeCompanyName, c.name);
+                          if (ok) setCompanyId(c.id);
+                        }}
+                        className="cursor-pointer focus:bg-sidebar-accent focus:text-sidebar-accent-foreground"
+                      >
                         <span className="flex-1 truncate">{c.name}</span>
                         {c.id === companyId && <Check className="h-4 w-4 shrink-0" />}
                       </DropdownMenuItem>
                     ))}
-                    <DropdownMenuSeparator />
+                    <DropdownMenuSeparator className="bg-sidebar-border" />
                   </>
                 )}
                 <DropdownMenuItem
                   onClick={logout}
-                  className="cursor-pointer text-destructive focus:text-destructive"
+                  className="cursor-pointer text-destructive focus:text-destructive focus:bg-sidebar-accent"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Sair</span>

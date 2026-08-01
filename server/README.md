@@ -1,4 +1,4 @@
-# server — Painel de Gestão por Indicadores
+# server — Painel de Gestão Baseada em Desempenho  
 
 API em Express + tRPC sobre PostgreSQL (Drizzle ORM). Pacote Node independente — tem seu próprio
 `package.json`, lockfile e instalação; não compartilha código nem tipos com o `client` (o client

@@ -14,12 +14,13 @@ import { ArrowDown, ArrowUp, Download, FileSpreadsheet, Printer } from "lucide-r
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 
-/** Barra superior com título, seletor de empresa/período e ações de exportação */
+/** Barra superior com título/subtítulo, nome da empresa ativa e ações de período/exportação */
 export function PageToolbar({
   title,
   subtitle,
   showExport = false,
   hideMonth = false,
+  hideYear = false,
   exportMode = "month",
   exportMonth,
   children,
@@ -29,18 +30,21 @@ export function PageToolbar({
   showExport?: boolean;
   /** Esconde o seletor de mês global (ex.: páginas que têm seu próprio controle de período local) */
   hideMonth?: boolean;
+  /** Esconde o seletor de ano global (páginas sem escopo de período, ex.: cadastros) */
+  hideYear?: boolean;
   /** Modo usado na exportação Excel: "month" (padrão) ou "ytd" (acumulado até o mês de referência) */
   exportMode?: "month" | "ytd";
   /** Mês de referência usado na exportação Excel; default = mês global (contexto). Use quando a página tem seu próprio período, desacoplado do seletor global. */
   exportMonth?: number;
   children?: React.ReactNode;
 }) {
-  const { companyId, setCompanyId, companies, year, setYear, month, setMonth } = useApp();
+  const { companyId, companies, year, setYear, month, setMonth } = useApp();
 
   const years = Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - 4 + i);
   const refMonth = exportMonth ?? month;
   const companyName = companies?.find((c) => c.id === companyId)?.name;
   const printedAt = new Date().toLocaleDateString("pt-BR");
+  const hasControls = !hideMonth || !hideYear || showExport || !!children;
 
   const handleExcel = () => {
     if (!companyId) return;
@@ -72,27 +76,21 @@ export function PageToolbar({
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 mb-6 print:hidden">
+      <div className="flex flex-col gap-3 mb-6 print:hidden">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="page-title font-serif text-3xl">{title}</h1>
             {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {companies && companies.length > 1 && (
-              <Select value={companyId ? String(companyId) : undefined} onValueChange={(v) => setCompanyId(parseInt(v))}>
-                <SelectTrigger className="w-[200px] bg-card">
-                  <SelectValue placeholder="Empresa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+          {companyName && (
+            <span className="text-sm font-medium text-muted-foreground text-right shrink-0 pt-1">
+              {companyName}
+            </span>
+          )}
+        </div>
+
+        {hasControls && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {!hideMonth && (
               <Select value={String(month)} onValueChange={(v) => setMonth(parseInt(v))}>
                 <SelectTrigger className="w-[130px] bg-card">
@@ -107,18 +105,20 @@ export function PageToolbar({
                 </SelectContent>
               </Select>
             )}
-            <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v))}>
-              <SelectTrigger className="w-[100px] bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {years.map((y) => (
-                  <SelectItem key={y} value={String(y)}>
-                    {y}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!hideYear && (
+              <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v))}>
+                <SelectTrigger className="w-[100px] bg-card">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {showExport && (
               <>
                 <Button variant="outline" size="sm" className="bg-card" onClick={handleExcel}>
@@ -133,7 +133,7 @@ export function PageToolbar({
             )}
             {children}
           </div>
-        </div>
+        )}
       </div>
     </>
   );

@@ -1,4 +1,4 @@
-import { PageSkeleton } from "@/components/shared";
+import { PageSkeleton, PageToolbar } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -163,13 +163,12 @@ export default function CadastroAreas() {
 
   return (
     <div className="fade-up">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="page-title font-serif text-3xl">Áreas</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Áreas e cargos avaliados (colunas da planilha original)
-          </p>
-        </div>
+      <PageToolbar
+        title="Áreas"
+        subtitle="Áreas e cargos avaliados (colunas da planilha original)"
+        hideMonth
+        hideYear
+      >
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditing({ id: null, name: "", parentAreaId: null, sortOrder: (areas?.length ?? 0) + 1, active: true })}>
@@ -240,7 +239,7 @@ export default function CadastroAreas() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageToolbar>
 
       <Card className="card-elegant border-0">
         <CardContent className="pt-6 overflow-x-auto">

@@ -246,6 +246,21 @@ button:active {
   }
 }
 
+/* ===== SweetAlert2 com a identidade visual do projeto ===== */
+.swal-project-popup {
+  font-family: var(--font-sans);
+  border-radius: var(--radius-lg);
+}
+.swal-project-title {
+  font-family: var(--font-serif);
+}
+.swal-project-confirm,
+.swal-project-cancel {
+  font-family: var(--font-sans);
+  border-radius: var(--radius-md) !important;
+  box-shadow: none !important;
+}
+
 /* ===== Scrollbar que só aparece no hover ===== */
 .scrollbar-hover {
   scrollbar-width: thin;

@@ -1,4 +1,4 @@
-import { PageSkeleton } from "@/components/shared";
+import { PageSkeleton, PageToolbar } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -200,12 +200,12 @@ export default function Parametrizacao() {
 
   return (
     <div className="fade-up">
-      <div className="mb-6">
-        <h1 className="page-title font-serif text-3xl">Parametrização</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Pesos das perspectivas por área e aplicabilidade dos indicadores
-        </p>
-      </div>
+      <PageToolbar
+        title="Parametrização"
+        subtitle="Pesos das perspectivas por área e aplicabilidade dos indicadores"
+        hideMonth
+        hideYear
+      />
 
       <Tabs defaultValue="pesos">
         <TabsList className="mb-4">

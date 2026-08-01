@@ -1,4 +1,4 @@
-# client — Painel de Gestão por Indicadores
+# client — Painel de Gestão Baseada em Desempenho  
 
 Front-end React + Vite que consome a API do `server/` via tRPC. Pacote Node independente — tem seu
 próprio `package.json`, lockfile e instalação; não compartilha código nem tipos com o `server`
@@ -111,7 +111,7 @@ por procedure do tRPC.
 
 **Sem usuário logado** — tela cheia (`h-screen`, sem scroll na página):
 - Painel esquerdo decorativo (`hidden lg:flex`, fundo escuro `bg-sidebar`), visível só em telas
-  `lg+`: logo `logo-painel-branco.png`, nome "Painel de Gestão por Indicadores", texto de
+  `lg+`: logo `logo-painel-branco.png`, nome "Painel de Gestão Baseada em Desempenho  ", texto de
   apresentação e um crédito "Desenvolvido por" + `logo-nbs-branco.png`.
 - Painel direito: formulário de login. Mostra a logo da ferramenta só quando o painel esquerdo
   está escondido (`lg:hidden`), trocando entre `logo-painel-azul.png` (tema claro) e

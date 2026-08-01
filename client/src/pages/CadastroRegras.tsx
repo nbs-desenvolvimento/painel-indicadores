@@ -1,4 +1,4 @@
-import { PageSkeleton } from "@/components/shared";
+import { PageSkeleton, PageToolbar } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -297,18 +297,16 @@ export default function CadastroRegras() {
 
   return (
     <div className="fade-up">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="page-title font-serif text-3xl">Regras de Calibragem</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Faixas de atingimento (Resultado ÷ Meta) que convertem o desempenho do indicador em score. A regra é
-            escolhida no cadastro de cada indicador.
-          </p>
-        </div>
+      <PageToolbar
+        title="Regras de Calibragem"
+        subtitle="Faixas de atingimento (Resultado ÷ Meta) que convertem o desempenho do indicador em score. A regra é escolhida no cadastro de cada indicador."
+        hideMonth
+        hideYear
+      >
         <Button onClick={openNew}>
           <Plus className="h-4 w-4 mr-1.5" /> Nova regra
         </Button>
-      </div>
+      </PageToolbar>
 
       <div className="grid gap-5 md:grid-cols-2">
         {rules?.map((rule) => {

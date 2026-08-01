@@ -1,4 +1,4 @@
-import { DirectionIcon, PageSkeleton } from "@/components/shared";
+import { DirectionIcon, PageSkeleton, PageToolbar } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -327,28 +327,26 @@ export default function CadastroIndicadores() {
 
   return (
     <div className="fade-up">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
-        <div>
-          <h1 className="page-title font-serif text-3xl">Indicadores</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Objetivos estratégicos e suas escalas de pontuação por degraus
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select value={filterPersp} onValueChange={setFilterPersp}>
-            <SelectTrigger className="w-[200px] bg-card">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as perspectivas</SelectItem>
-              {perspectives?.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <PageToolbar
+        title="Indicadores"
+        subtitle="Objetivos estratégicos e suas escalas de pontuação por degraus"
+        hideMonth
+        hideYear
+      >
+        <Select value={filterPersp} onValueChange={setFilterPersp}>
+          <SelectTrigger className="w-[200px] bg-card">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as perspectivas</SelectItem>
+            {perspectives?.map((p) => (
+              <SelectItem key={p.id} value={String(p.id)}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button
                 onClick={() =>
@@ -617,8 +615,7 @@ export default function CadastroIndicadores() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+      </PageToolbar>
 
       <Card className="card-elegant border-0">
         <CardContent className="pt-6 overflow-x-auto">

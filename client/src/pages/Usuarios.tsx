@@ -1,4 +1,4 @@
-import { EmptyState, PageSkeleton } from "@/components/shared";
+import { EmptyState, PageSkeleton, PageToolbar } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -252,18 +252,16 @@ export default function Usuarios() {
 
   return (
     <div className="fade-up space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="page-title font-serif text-3xl">Usuários</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Cadastre usuários e defina as empresas e áreas que cada um pode ver e lançar. Administradores têm
-            acesso completo, sem restrição de empresa ou área.
-          </p>
-        </div>
+      <PageToolbar
+        title="Usuários"
+        subtitle="Cadastre usuários e defina as empresas e áreas que cada um pode ver e lançar. Administradores têm acesso completo, sem restrição de empresa ou área."
+        hideMonth
+        hideYear
+      >
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-1.5" /> Novo usuário
         </Button>
-      </div>
+      </PageToolbar>
 
       <Card className="card-elegant border-0">
         <CardContent className="overflow-x-auto pt-6">
