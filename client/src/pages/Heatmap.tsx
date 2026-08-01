@@ -1,25 +1,33 @@
 import { DashboardEmptyState, PageSkeleton, PageToolbar } from "@/components/shared";
+import { PeriodModeBadge, PeriodModeToggle, usePeriodModeControls } from "@/components/PeriodModeControls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { fmtScore, scoreBg, useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
+import { formatPeriodBadge, formatPeriodSubtitle } from "@/lib/periodMode";
 
 export default function Heatmap() {
-  const { companyId, year, month, periodLabel } = useApp();
+  const { companyId, year } = useApp();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const pm = usePeriodModeControls(year);
   const { data: snap, isLoading } = useDashboardSnapshot(
-    { companyId: companyId ?? 0, year, month },
+    { companyId: companyId ?? 0, year, month: pm.month, mode: pm.mode },
     { enabled: !!companyId },
   );
 
+  const periodSubtitle = formatPeriodSubtitle(pm.viewScope, pm.calcMode, pm.month, year);
+  const periodBadge = formatPeriodBadge(pm.viewScope, pm.calcMode, pm.month, year);
+
   if (isLoading || !companyId) return <PageSkeleton />;
 
-  if (!snap || snap.indicators.length === 0 || snap.areas.length === 0) {
+  if (!snap || (snap.indicators ?? []).length === 0 || (snap.areas ?? []).length === 0) {
     return (
       <>
-        <PageToolbar title="Heatmap" subtitle={periodLabel} />
+        <PageToolbar title="Heatmap" subtitle={periodSubtitle} hideMonth exportMode={pm.mode} exportMonth={pm.month}>
+          <PeriodModeToggle {...pm} />
+        </PageToolbar>
         <DashboardEmptyState
           isAdmin={isAdmin}
           adminTitle="Sem dados para exibir"
@@ -51,7 +59,16 @@ export default function Heatmap() {
 
   return (
     <div className="fade-up">
-      <PageToolbar title="Heatmap Indicador × Área" subtitle={`Mapa de calor de scores — ${periodLabel}`} showExport />
+      <PageToolbar
+        title="Heatmap Indicador × Área"
+        subtitle={`Mapa de calor de scores — ${periodSubtitle}`}
+        showExport
+        hideMonth
+        exportMode={pm.mode}
+        exportMonth={pm.month}
+      >
+        <PeriodModeToggle {...pm} />
+      </PageToolbar>
 
       <Card className="card-elegant border-0">
         <CardHeader className="pb-3">
@@ -60,6 +77,7 @@ export default function Heatmap() {
               Score do indicador nas áreas onde é aplicável
             </CardTitle>
             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <PeriodModeBadge label={periodBadge} />
               {legend.map((l) => (
                 <span key={l.label} className="inline-flex items-center gap-1.5">
                   <span className="h-3 w-3 rounded-sm inline-block" style={{ backgroundColor: l.color }} />

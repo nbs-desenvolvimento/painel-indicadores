@@ -1,5 +1,6 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DashboardEmptyState, PageSkeleton, PageToolbar, ScoreBadge, ScoreGauge } from "@/components/shared";
+import { PeriodModeBadge, PeriodModeToggle, usePeriodModeControls } from "@/components/PeriodModeControls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -14,6 +15,7 @@ import { MONTH_NAMES_SHORT, fmtScore, fmtValue, scoreColor, useApp } from "@/con
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardHistory, useDashboardSnapshot } from "@/lib/apiHooks";
 import type { DashboardSnapshot } from "@/lib/apiTypes";
+import { formatPeriodBadge, formatPeriodSubtitle } from "@/lib/periodMode";
 import { buildLast12Periods } from "@/lib/periods";
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -35,17 +37,21 @@ import {
 const ALL = "all";
 
 export default function DashboardObjetivos() {
-  const { companyId, year, month, periodLabel } = useApp();
+  const { companyId, year } = useApp();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [objectiveId, setObjectiveId] = useState<number | typeof ALL | null>(null);
 
+  const pm = usePeriodModeControls(year);
   const { data: snap, isLoading } = useDashboardSnapshot(
-    { companyId: companyId ?? 0, year, month },
+    { companyId: companyId ?? 0, year, month: pm.month, mode: pm.mode },
     { enabled: !!companyId },
   );
 
-  const periods = useMemo(() => buildLast12Periods(year, month), [year, month]);
+  const periodSubtitle = formatPeriodSubtitle(pm.viewScope, pm.calcMode, pm.month, year);
+  const periodBadge = formatPeriodBadge(pm.viewScope, pm.calcMode, pm.month, year);
+
+  const periods = useMemo(() => buildLast12Periods(year, pm.month), [year, pm.month]);
   const { data: history } = useDashboardHistory(
     { companyId: companyId ?? 0, periods },
     { enabled: !!companyId },
@@ -67,7 +73,15 @@ export default function DashboardObjetivos() {
   if (!snap || (snap.objectives ?? []).length === 0) {
     return (
       <>
-        <PageToolbar title="Dashboard por Objetivo" subtitle={periodLabel} />
+        <PageToolbar
+          title="Dashboard por Objetivo"
+          subtitle={periodSubtitle}
+          hideMonth
+          exportMode={pm.mode}
+          exportMonth={pm.month}
+        >
+          <PeriodModeToggle {...pm} />
+        </PageToolbar>
         <DashboardEmptyState
           isAdmin={isAdmin}
           adminTitle="Nenhum objetivo cadastrado"
@@ -114,7 +128,15 @@ export default function DashboardObjetivos() {
 
   return (
     <div className="fade-up">
-      <PageToolbar title="Dashboard por Objetivo" subtitle={`Análise por objetivo estratégico — ${periodLabel}`} showExport>
+      <PageToolbar
+        title="Dashboard por Objetivo"
+        subtitle={`Análise por objetivo estratégico — ${periodSubtitle}`}
+        showExport
+        hideMonth
+        exportMode={pm.mode}
+        exportMonth={pm.month}
+      >
+        <PeriodModeToggle {...pm} />
         <Select
           value={objectiveId === ALL ? ALL : objectiveId ? String(objectiveId) : undefined}
           onValueChange={(v) => setObjectiveId(v === ALL ? ALL : parseInt(v))}
@@ -158,7 +180,9 @@ export default function DashboardObjetivos() {
         </Alert>
       )}
 
-      {objectiveId === ALL && <ObjectiveGroupView snap={snap} onSelectObjective={setObjectiveId} />}
+      {objectiveId === ALL && (
+        <ObjectiveGroupView snap={snap} onSelectObjective={setObjectiveId} periodBadge={periodBadge} />
+      )}
 
       {objectiveId !== ALL && selected && (
         <>
@@ -186,8 +210,9 @@ export default function DashboardObjetivos() {
 
             <Card className="card-elegant border-0 lg:col-span-2">
               <CardHeader className="pb-0">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                  Score do Objetivo
+                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+                  <span>Score do Objetivo</span>
+                  <PeriodModeBadge label={periodBadge} />
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex items-center justify-center pt-1 pb-4">
@@ -207,8 +232,9 @@ export default function DashboardObjetivos() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
                 <Card className="card-elegant border-0">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                      Indicadores do objetivo
+                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+                      <span>Indicadores do objetivo</span>
+                      <PeriodModeBadge label={periodBadge} />
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="overflow-x-auto">
@@ -242,8 +268,9 @@ export default function DashboardObjetivos() {
 
                 <Card className="card-elegant border-0">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                      Score do objetivo por área
+                    <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+                      <span>Score do objetivo por área</span>
+                      <PeriodModeBadge label={periodBadge} />
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -277,8 +304,11 @@ export default function DashboardObjetivos() {
                 <Card className="card-elegant border-0">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                      Evolução do Score (12 meses)
+                      Evolução Mensal do Score (12 meses)
                     </CardTitle>
+                    <p className="text-[11px] normal-case text-muted-foreground font-normal">
+                      Sempre mês a mês — independente do modo Ano/Acumulado selecionado acima.
+                    </p>
                   </CardHeader>
                   <CardContent>
                     <div className="h-72">
@@ -330,9 +360,11 @@ export default function DashboardObjetivos() {
 function ObjectiveGroupView({
   snap,
   onSelectObjective,
+  periodBadge,
 }: {
   snap: DashboardSnapshot;
   onSelectObjective: (id: number) => void;
+  periodBadge: string;
 }) {
   const perspColor = new Map((snap.perspectives ?? []).map((p) => [p.id, p.color || "#1e3a5f"]));
   const perspName = new Map((snap.perspectives ?? []).map((p) => [p.id, p.name]));
@@ -391,8 +423,9 @@ function ObjectiveGroupView({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="card-elegant border-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Score por objetivo
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+              <span>Score por objetivo</span>
+              <PeriodModeBadge label={periodBadge} />
             </CardTitle>
           </CardHeader>
           <CardContent>

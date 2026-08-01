@@ -1,4 +1,5 @@
 import { DashboardEmptyState, PageSkeleton, PageToolbar, ScoreBadge, ScoreGauge } from "@/components/shared";
+import { PeriodModeBadge, PeriodModeToggle, usePeriodModeControls } from "@/components/PeriodModeControls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
 import type { Area, DashboardSnapshot } from "@/lib/apiTypes";
 import { averageScore } from "@/lib/indicatorGrouping";
+import { formatPeriodBadge, formatPeriodSubtitle } from "@/lib/periodMode";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -24,7 +26,7 @@ import {
 import { useSearchParams } from "wouter";
 
 export default function DashboardAreas() {
-  const { companyId, year, month, periodLabel } = useApp();
+  const { companyId, year } = useApp();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [searchParams] = useSearchParams();
@@ -33,10 +35,14 @@ export default function DashboardAreas() {
   const [initialized, setInitialized] = useState(false);
   const [selectedAreaIds, setSelectedAreaIds] = useState<number[]>(urlArea ? [parseInt(urlArea)] : []);
 
+  const pm = usePeriodModeControls(year);
   const { data: snap, isLoading } = useDashboardSnapshot(
-    { companyId: companyId ?? 0, year, month },
+    { companyId: companyId ?? 0, year, month: pm.month, mode: pm.mode },
     { enabled: !!companyId },
   );
+
+  const periodSubtitle = formatPeriodSubtitle(pm.viewScope, pm.calcMode, pm.month, year);
+  const periodBadge = formatPeriodBadge(pm.viewScope, pm.calcMode, pm.month, year);
 
   useEffect(() => {
     if (!snap) return;
@@ -58,7 +64,9 @@ export default function DashboardAreas() {
   if (!snap || (snap.areas ?? []).length === 0) {
     return (
       <>
-        <PageToolbar title="Dashboard por Área" subtitle={periodLabel} />
+        <PageToolbar title="Dashboard por Área" subtitle={periodSubtitle} hideMonth exportMode={pm.mode} exportMonth={pm.month}>
+          <PeriodModeToggle {...pm} />
+        </PageToolbar>
         <DashboardEmptyState
           isAdmin={isAdmin}
           adminTitle="Nenhuma área cadastrada"
@@ -89,7 +97,15 @@ export default function DashboardAreas() {
 
   return (
     <div className="fade-up">
-      <PageToolbar title="Dashboard por Área" subtitle={`Análise detalhada — ${periodLabel}`} showExport>
+      <PageToolbar
+        title="Dashboard por Área"
+        subtitle={`Análise detalhada — ${periodSubtitle}`}
+        showExport
+        hideMonth
+        exportMode={pm.mode}
+        exportMonth={pm.month}
+      >
+        <PeriodModeToggle {...pm} />
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="w-[240px] justify-between bg-card font-normal">
@@ -121,15 +137,28 @@ export default function DashboardAreas() {
       </PageToolbar>
 
       {selectedAreas.length === 1 ? (
-        <SingleAreaView area={selectedAreas[0]} snap={snap} />
+        <SingleAreaView area={selectedAreas[0]} snap={snap} periodBadge={periodBadge} />
       ) : (
-        <AreaGroupView areas={selectedAreas} snap={snap} onSelectArea={(id) => setSelectedAreaIds([id])} />
+        <AreaGroupView
+          areas={selectedAreas}
+          snap={snap}
+          onSelectArea={(id) => setSelectedAreaIds([id])}
+          periodBadge={periodBadge}
+        />
       )}
     </div>
   );
 }
 
-function SingleAreaView({ area, snap }: { area: Area; snap: DashboardSnapshot }) {
+function SingleAreaView({
+  area,
+  snap,
+  periodBadge,
+}: {
+  area: Area;
+  snap: DashboardSnapshot;
+  periodBadge: string;
+}) {
   const areaScore = (snap.areaScores ?? []).find((a) => a.areaId === area.id);
   const perspName = new Map((snap.perspectives ?? []).map((p) => [p.id, p.name]));
   const perspColor = new Map((snap.perspectives ?? []).map((p) => [p.id, p.color || "#1e3a5f"]));
@@ -145,8 +174,9 @@ function SingleAreaView({ area, snap }: { area: Area; snap: DashboardSnapshot })
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
         <Card className="card-elegant border-0 lg:col-span-1">
           <CardHeader className="pb-0">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Desempenho Total
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+              <span>Desempenho Total</span>
+              <PeriodModeBadge label={periodBadge} />
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-center pt-2 pb-4">
@@ -181,8 +211,9 @@ function SingleAreaView({ area, snap }: { area: Area; snap: DashboardSnapshot })
 
       <Card className="card-elegant border-0">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-            Indicadores aplicáveis à área ({applicableInds.length})
+          <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+            <span>Indicadores aplicáveis à área ({applicableInds.length})</span>
+            <PeriodModeBadge label={periodBadge} />
           </CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -231,10 +262,12 @@ function AreaGroupView({
   snap,
   areas,
   onSelectArea,
+  periodBadge,
 }: {
   snap: DashboardSnapshot;
   areas: Area[];
   onSelectArea: (id: number) => void;
+  periodBadge: string;
 }) {
   const scores = areas.map((a) => (snap.areaScores ?? []).find((x) => x.areaId === a.id)).filter((s) => s !== undefined);
   const groupAverage = averageScore(scores.map((s) => s.total));
@@ -272,8 +305,9 @@ function AreaGroupView({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="card-elegant border-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Desempenho total por área
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+              <span>Desempenho total por área</span>
+              <PeriodModeBadge label={periodBadge} />
             </CardTitle>
           </CardHeader>
           <CardContent>

@@ -1,14 +1,11 @@
 import { DashboardEmptyState, PageSkeleton, PageToolbar, ScoreBadge } from "@/components/shared";
-import { Badge } from "@/components/ui/badge";
+import { PeriodModeBadge, PeriodModeToggle, usePeriodModeControls } from "@/components/PeriodModeControls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { MONTH_NAMES, MONTH_NAMES_SHORT, fmtScore, scoreColor, useApp } from "@/contexts/AppContext";
+import { fmtScore, scoreColor, useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
-import { deriveRankingPeriod, type CalcMode, type ViewScope } from "@/lib/rankingPeriod";
+import { formatPeriodBadge, formatPeriodSubtitle } from "@/lib/periodMode";
 import { Medal, Trophy } from "lucide-react";
-import { useState } from "react";
 import {
   Bar,
   BarChart,
@@ -23,89 +20,22 @@ import {
 } from "recharts";
 
 export default function Ranking() {
-  const { companyId, year, periodLabel } = useApp();
+  const { companyId, year } = useApp();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  const [viewScope, setViewScope] = useState<ViewScope>("ano");
-  const [calcMode, setCalcMode] = useState<CalcMode>("acumulado");
-  const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getMonth() + 1);
-
-  const { mode, month: endMonth } = deriveRankingPeriod(viewScope, calcMode, selectedMonth, year);
-  const isCurrentRealYear = year === new Date().getFullYear();
+  const pm = usePeriodModeControls(year);
+  const { viewScope, calcMode, mode, month: endMonth } = pm;
 
   const { data: snap, isLoading } = useDashboardSnapshot(
     { companyId: companyId ?? 0, year, month: endMonth, mode },
     { enabled: !!companyId },
   );
 
-  const periodSubtitle =
-    viewScope === "ano"
-      ? isCurrentRealYear
-        ? `Acumulado de Janeiro a ${MONTH_NAMES[endMonth - 1]} de ${year} (ano em andamento)`
-        : `Acumulado de Janeiro a Dezembro de ${year}`
-      : calcMode === "acumulado"
-        ? `Acumulado de Janeiro a ${MONTH_NAMES[endMonth - 1]} de ${year}`
-        : periodLabel;
-  const modeBadgeLabel =
-    viewScope === "ano"
-      ? isCurrentRealYear
-        ? `Acumulado Jan–${MONTH_NAMES_SHORT[endMonth - 1]}/${year}`
-        : `Acumulado Jan–Dez/${year}`
-      : calcMode === "acumulado"
-        ? `Acumulado Jan–${MONTH_NAMES_SHORT[endMonth - 1]}/${year}`
-        : `${MONTH_NAMES_SHORT[endMonth - 1]}/${year}`;
+  const periodSubtitle = formatPeriodSubtitle(viewScope, calcMode, endMonth, year);
+  const modeBadgeLabel = formatPeriodBadge(viewScope, calcMode, endMonth, year);
 
-  const periodControls = (
-    <div className="flex flex-wrap items-center gap-2">
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        value={viewScope}
-        onValueChange={(v) => v && setViewScope(v as ViewScope)}
-        className="bg-card shrink-0"
-      >
-        <ToggleGroupItem value="ano" className="whitespace-nowrap px-3">
-          Ano
-        </ToggleGroupItem>
-        <ToggleGroupItem value="mes" className="whitespace-nowrap px-3">
-          Mês
-        </ToggleGroupItem>
-      </ToggleGroup>
-      {viewScope === "mes" && (
-        <>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            value={calcMode}
-            onValueChange={(v) => v && setCalcMode(v as CalcMode)}
-            className="bg-card shrink-0"
-          >
-            <ToggleGroupItem value="acumulado" className="whitespace-nowrap px-3">
-              Acumulado
-            </ToggleGroupItem>
-            <ToggleGroupItem value="periodo" className="whitespace-nowrap px-3">
-              Período
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
-            <SelectTrigger className="w-[130px] bg-card shrink-0">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MONTH_NAMES.map((m, i) => (
-                <SelectItem key={i + 1} value={String(i + 1)}>
-                  {m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </>
-      )}
-    </div>
-  );
+  const periodControls = <PeriodModeToggle {...pm} />;
 
   if (isLoading || !companyId) return <PageSkeleton />;
 
@@ -181,9 +111,7 @@ export default function Ranking() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
               <span>Desempenho por área</span>
-              <Badge variant="outline" className="normal-case font-normal text-[11px] text-muted-foreground">
-                {modeBadgeLabel}
-              </Badge>
+              <PeriodModeBadge label={modeBadgeLabel} />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -222,9 +150,7 @@ export default function Ranking() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
               <span>Classificação completa</span>
-              <Badge variant="outline" className="normal-case font-normal text-[11px] text-muted-foreground">
-                {modeBadgeLabel}
-              </Badge>
+              <PeriodModeBadge label={modeBadgeLabel} />
             </CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto">

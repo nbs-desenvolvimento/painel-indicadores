@@ -1,10 +1,12 @@
 import { DashboardEmptyState, PageSkeleton, PageToolbar } from "@/components/shared";
+import { PeriodModeBadge, PeriodModeToggle, usePeriodModeControls } from "@/components/PeriodModeControls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fmtScore, scoreColor, useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
+import { formatPeriodBadge, formatPeriodSubtitle } from "@/lib/periodMode";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
@@ -120,15 +122,19 @@ function OrgNode({
 }
 
 export default function Organograma() {
-  const { companyId, year, month } = useApp();
+  const { companyId, year } = useApp();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const pm = usePeriodModeControls(year);
   const { data: snap, isLoading } = useDashboardSnapshot(
-    { companyId: companyId ?? 0, year, month },
+    { companyId: companyId ?? 0, year, month: pm.month, mode: pm.mode },
     { enabled: !!companyId },
   );
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+
+  const periodSubtitle = formatPeriodSubtitle(pm.viewScope, pm.calcMode, pm.month, year);
+  const periodBadge = formatPeriodBadge(pm.viewScope, pm.calcMode, pm.month, year);
 
   const tree = useMemo(() => {
     if (!snap) return [];
@@ -142,10 +148,18 @@ export default function Organograma() {
   if (isLoading || !companyId) return <PageSkeleton />;
   if (!snap) return <PageSkeleton />;
 
-  if (snap.areas.length === 0) {
+  if ((snap.areas ?? []).length === 0) {
     return (
       <>
-        <PageToolbar title="Organograma" subtitle="Hierarquia das áreas com o desempenho do período" />
+        <PageToolbar
+          title="Organograma"
+          subtitle={periodSubtitle}
+          hideMonth
+          exportMode={pm.mode}
+          exportMonth={pm.month}
+        >
+          <PeriodModeToggle {...pm} />
+        </PageToolbar>
         <DashboardEmptyState
           isAdmin={isAdmin}
           adminTitle="Nenhuma área cadastrada"
@@ -188,13 +202,23 @@ export default function Organograma() {
 
   return (
     <div className="fade-up">
-      <PageToolbar title="Organograma" subtitle="Hierarquia das áreas com o desempenho do período" showExport />
+      <PageToolbar
+        title="Organograma"
+        subtitle={periodSubtitle}
+        showExport
+        hideMonth
+        exportMode={pm.mode}
+        exportMonth={pm.month}
+      >
+        <PeriodModeToggle {...pm} />
+      </PageToolbar>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6 print-block">
         <Card className="card-elegant border-0">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Estrutura organizacional
+            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center justify-between gap-2 flex-wrap">
+              <span>Estrutura organizacional</span>
+              <PeriodModeBadge label={periodBadge} />
             </CardTitle>
             <p className="text-xs text-muted-foreground">
               Marque uma diretoria para selecioná-la junto com todos os seus subordinados. Configure a
@@ -205,7 +229,7 @@ export default function Organograma() {
             {tree.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma área cadastrada.</p>
             ) : (
-              <div className="max-h-[560px] overflow-y-auto pr-2">
+              <div className="pr-2">
                 {tree.map((n) => (
                   <OrgNode
                     key={n.id}
@@ -236,8 +260,9 @@ export default function Organograma() {
 
         <Card className="card-elegant border-0">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Resultado das áreas selecionadas
+            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground flex items-center justify-between gap-2 flex-wrap">
+              <span>Resultado das áreas selecionadas</span>
+              <PeriodModeBadge label={periodBadge} />
             </CardTitle>
             {avg !== null && (
               <p className="text-xs text-muted-foreground">

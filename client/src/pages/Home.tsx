@@ -1,8 +1,10 @@
 import { DashboardEmptyState, PageSkeleton, PageToolbar, ScoreBadge, ScoreGauge } from "@/components/shared";
+import { PeriodModeBadge, PeriodModeToggle, usePeriodModeControls } from "@/components/PeriodModeControls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtScore, scoreColor, useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
+import { formatPeriodBadge, formatPeriodSubtitle } from "@/lib/periodMode";
 import { Trophy } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -18,22 +20,28 @@ import {
 } from "recharts";
 
 export default function Home() {
-  const { companyId, year, month, periodLabel } = useApp();
+  const { companyId, year } = useApp();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const pm = usePeriodModeControls(year);
   const { data: snap, isLoading } = useDashboardSnapshot(
-    { companyId: companyId ?? 0, year, month },
+    { companyId: companyId ?? 0, year, month: pm.month, mode: pm.mode },
     { enabled: !!companyId },
   );
+
+  const periodSubtitle = formatPeriodSubtitle(pm.viewScope, pm.calcMode, pm.month, year);
+  const periodBadge = formatPeriodBadge(pm.viewScope, pm.calcMode, pm.month, year);
 
   if (isLoading || !companyId) {
     return <PageSkeleton />;
   }
 
-  if (!snap || snap.areas.length === 0) {
+  if (!snap || (snap.areas ?? []).length === 0) {
     return (
       <>
-        <PageToolbar title="Visão Geral" subtitle={periodLabel} />
+        <PageToolbar title="Visão Geral" subtitle={periodSubtitle} hideMonth exportMode={pm.mode} exportMonth={pm.month}>
+          <PeriodModeToggle {...pm} />
+        </PageToolbar>
         <DashboardEmptyState
           isAdmin={isAdmin}
           adminTitle="Nenhuma área cadastrada"
@@ -57,14 +65,24 @@ export default function Home() {
 
   return (
     <div className="fade-up">
-      <PageToolbar title="Visão Geral" subtitle={`Desempenho consolidado — ${periodLabel}`} showExport />
+      <PageToolbar
+        title="Visão Geral"
+        subtitle={`Desempenho consolidado — ${periodSubtitle}`}
+        showExport
+        hideMonth
+        exportMode={pm.mode}
+        exportMonth={pm.month}
+      >
+        <PeriodModeToggle {...pm} />
+      </PageToolbar>
 
       {/* Linha de destaque: gauge do grupo + perspectivas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <Card className="card-elegant border-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              {groupArea?.areaName ?? "Desempenho"}
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+              <span>{groupArea?.areaName ?? "Desempenho"}</span>
+              <PeriodModeBadge label={periodBadge} />
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-center pb-6">
@@ -108,8 +126,9 @@ export default function Home() {
       {/* Gráfico de barras: desempenho por área */}
       <Card className="card-elegant border-0 mb-6">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-            Desempenho Total por Área
+          <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+            <span>Desempenho Total por Área</span>
+            <PeriodModeBadge label={periodBadge} />
           </CardTitle>
         </CardHeader>
         <CardContent>

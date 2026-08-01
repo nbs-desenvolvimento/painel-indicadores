@@ -1,4 +1,5 @@
 import { DashboardEmptyState, PageSkeleton, PageToolbar, ScoreBadge } from "@/components/shared";
+import { PeriodModeBadge, PeriodModeToggle, usePeriodModeControls } from "@/components/PeriodModeControls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -12,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useDashboardSnapshot } from "@/lib/apiHooks";
 import type { DashboardSnapshot, Perspective } from "@/lib/apiTypes";
 import { averageScore } from "@/lib/indicatorGrouping";
+import { formatPeriodBadge, formatPeriodSubtitle } from "@/lib/periodMode";
 import { useEffect, useState } from "react";
 import {
   Bar,
@@ -28,15 +30,19 @@ import {
 const ALL = "all";
 
 export default function DashboardPerspectivas() {
-  const { companyId, year, month, periodLabel } = useApp();
+  const { companyId, year } = useApp();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [perspectiveId, setPerspectiveId] = useState<number | typeof ALL | null>(null);
 
+  const pm = usePeriodModeControls(year);
   const { data: snap, isLoading } = useDashboardSnapshot(
-    { companyId: companyId ?? 0, year, month },
+    { companyId: companyId ?? 0, year, month: pm.month, mode: pm.mode },
     { enabled: !!companyId },
   );
+
+  const periodSubtitle = formatPeriodSubtitle(pm.viewScope, pm.calcMode, pm.month, year);
+  const periodBadge = formatPeriodBadge(pm.viewScope, pm.calcMode, pm.month, year);
 
   useEffect(() => {
     if (!snap) return;
@@ -54,7 +60,15 @@ export default function DashboardPerspectivas() {
   if (!snap || (snap.perspectives ?? []).length === 0 || (snap.areas ?? []).length === 0) {
     return (
       <>
-        <PageToolbar title="Dashboard por Perspectiva" subtitle={periodLabel} />
+        <PageToolbar
+          title="Dashboard por Perspectiva"
+          subtitle={periodSubtitle}
+          hideMonth
+          exportMode={pm.mode}
+          exportMonth={pm.month}
+        >
+          <PeriodModeToggle {...pm} />
+        </PageToolbar>
         <DashboardEmptyState
           isAdmin={isAdmin}
           adminTitle="Nenhuma perspectiva ou área cadastrada"
@@ -68,7 +82,15 @@ export default function DashboardPerspectivas() {
 
   return (
     <div className="fade-up">
-      <PageToolbar title="Dashboard por Perspectiva" subtitle={`Análise por perspectiva estratégica — ${periodLabel}`} showExport>
+      <PageToolbar
+        title="Dashboard por Perspectiva"
+        subtitle={`Análise por perspectiva estratégica — ${periodSubtitle}`}
+        showExport
+        hideMonth
+        exportMode={pm.mode}
+        exportMonth={pm.month}
+      >
+        <PeriodModeToggle {...pm} />
         <Select
           value={perspectiveId === ALL ? ALL : perspectiveId ? String(perspectiveId) : undefined}
           onValueChange={(v) => setPerspectiveId(v === ALL ? ALL : parseInt(v))}
@@ -87,13 +109,25 @@ export default function DashboardPerspectivas() {
         </Select>
       </PageToolbar>
 
-      {perspectiveId === ALL && <PerspectiveGroupView snap={snap} onSelectPerspective={setPerspectiveId} />}
-      {perspectiveId !== ALL && selected && <SinglePerspectiveView selected={selected} snap={snap} />}
+      {perspectiveId === ALL && (
+        <PerspectiveGroupView snap={snap} onSelectPerspective={setPerspectiveId} periodBadge={periodBadge} />
+      )}
+      {perspectiveId !== ALL && selected && (
+        <SinglePerspectiveView selected={selected} snap={snap} periodBadge={periodBadge} />
+      )}
     </div>
   );
 }
 
-function SinglePerspectiveView({ selected, snap }: { selected: Perspective; snap: DashboardSnapshot }) {
+function SinglePerspectiveView({
+  selected,
+  snap,
+  periodBadge,
+}: {
+  selected: Perspective;
+  snap: DashboardSnapshot;
+  periodBadge: string;
+}) {
   const perspInds = (snap.indicatorScores ?? []).filter((i) => i.perspectiveId === selected.id);
 
   // Desempenho da perspectiva em cada área (média × peso)
@@ -116,8 +150,9 @@ function SinglePerspectiveView({ selected, snap }: { selected: Perspective; snap
         <Card className="card-elegant border-0">
           <CardHeader className="pb-2">
             <div className="h-1 w-10 rounded-full mb-2" style={{ backgroundColor: selected.color || "#1e3a5f" }} />
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Indicadores da perspectiva {selected.name}
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+              <span>Indicadores da perspectiva {selected.name}</span>
+              <PeriodModeBadge label={periodBadge} />
             </CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -223,9 +258,11 @@ function SinglePerspectiveView({ selected, snap }: { selected: Perspective; snap
 function PerspectiveGroupView({
   snap,
   onSelectPerspective,
+  periodBadge,
 }: {
   snap: DashboardSnapshot;
   onSelectPerspective: (id: number) => void;
+  periodBadge: string;
 }) {
   // Média do "average" da perspectiva (média dos indicadores, antes do peso) entre todas as áreas em que se aplica
   const perspAverages = (snap.perspectives ?? []).map((persp) => {
@@ -275,8 +312,9 @@ function PerspectiveGroupView({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="card-elegant border-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Desempenho médio por perspectiva
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-2 flex-wrap">
+              <span>Desempenho médio por perspectiva</span>
+              <PeriodModeBadge label={periodBadge} />
             </CardTitle>
           </CardHeader>
           <CardContent>
