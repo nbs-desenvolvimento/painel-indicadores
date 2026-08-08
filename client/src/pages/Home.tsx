@@ -52,7 +52,12 @@ export default function Home() {
   }
 
   const ranked = [...snap.areaScores].sort((a, b) => b.total - a.total);
-  const groupArea = snap.areaScores.find((a) => a.areaName.toUpperCase().includes("GRUPO")) ?? ranked[0];
+  // Primeira área pelo campo sortOrder (não pela ordem de cadastro): usa a área com
+  // sortOrder = 1 — normalmente o CEO/topo do organograma — ou, na ausência dela,
+  // a de menor sortOrder cadastrado.
+  const areasBySortOrder = [...(snap.areas ?? [])].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+  const firstArea = areasBySortOrder.find((a) => a.sortOrder === 1) ?? areasBySortOrder[0];
+  const groupArea = snap.areaScores.find((a) => a.areaId === firstArea?.id) ?? ranked[0];
   const chartData = ranked.map((a) => ({
     name: a.areaName,
     total: Math.round(a.total * 1000) / 10,
