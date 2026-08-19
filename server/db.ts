@@ -349,6 +349,7 @@ export async function createIndicator(data: {
   unit?: string;
   scaleType: "higher_better_120" | "higher_better_100" | "lower_better_100" | "lower_better_120" | "target_range";
   direction?: "higher_better" | "lower_better";
+  accumulationType?: "mensal" | "anual";
   objectiveId?: number | null;
   calibrationRuleId?: number | null;
   defaultGoal?: number | null;
@@ -368,6 +369,7 @@ export async function updateIndicator(
     unit: string;
     scaleType: "higher_better_120" | "higher_better_100" | "lower_better_100" | "lower_better_120" | "target_range";
     direction: "higher_better" | "lower_better";
+    accumulationType: "mensal" | "anual";
     objectiveId: number | null;
     calibrationRuleId: number | null;
     defaultGoal: number | null;

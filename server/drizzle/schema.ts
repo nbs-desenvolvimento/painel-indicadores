@@ -110,6 +110,22 @@ export const directionEnum = ["higher_better", "lower_better"] as const;
 
 export const directionPgEnum = pgEnum("direction", directionEnum);
 
+/**
+ * Tipo de acumulação do indicador na visão "Acumulado" (YTD):
+ * - mensal: cada mês é uma fatia de um total (ex.: vendas do mês, novos
+ *   clientes). Meta e Resultado acumulados exibidos = SOMA dos meses do
+ *   período.
+ * - anual: o valor mensal é recorrente/ajustável, não uma fatia de um total
+ *   (ex.: nota, taxa, nível de serviço). Meta e Resultado acumulados
+ *   exibidos = MÉDIA dos meses lançados no período.
+ * O % de atingimento (score) é idêntico nos dois casos — sempre
+ * Σresultado/Σmeta, que é matematicamente igual a média/média. Só a exibição
+ * de Meta/Resultado agregados muda entre os dois tipos.
+ */
+export const accumulationTypeEnum = ["mensal", "anual"] as const;
+
+export const accumulationTypePgEnum = pgEnum("accumulationType", accumulationTypeEnum);
+
 /** Objetivos estratégicos: perspectivas → objetivos → indicadores */
 export const objectives = pgTable("objectives", {
   id: serial("id").primaryKey(),
@@ -177,6 +193,8 @@ export const indicators = pgTable("indicators", {
   scaleType: scaleTypePgEnum("scaleType").default("higher_better_100").notNull(),
   /** Sentido do indicador (o que é positivo): aumentar ou reduzir o resultado */
   direction: directionPgEnum("direction").default("higher_better").notNull(),
+  /** Tipo de acumulação no modo "Acumulado" (YTD): mensal = soma, anual = média */
+  accumulationType: accumulationTypePgEnum("accumulationType").default("mensal").notNull(),
   /** Objetivo estratégico ao qual o indicador pertence (perspectivas → objetivos → indicadores) */
   objectiveId: integer("objectiveId"),
   /** Regra de calibragem aplicada ao indicador (substitui o scaleType fixo) */

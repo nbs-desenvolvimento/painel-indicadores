@@ -91,6 +91,7 @@ const mkIndicator = (id: number, overrides: Record<string, unknown> = {}) => ({
   unit: "number",
   scaleType: "higher_better_120",
   direction: "higher_better",
+  accumulationType: "mensal",
   objectiveId: null,
   calibrationRuleId: null,
   defaultGoal: null,
@@ -377,6 +378,48 @@ describe("dashboardService.buildCompanySnapshot — filtro por allowedAreaIds", 
     expect(ind10.goal).toBeNull();
     expect(ind10.result).toBeNull();
     expect(ind10.score).toBeNull();
+  });
+
+  it("mode ytd com accumulationType 'anual' exibe a MÉDIA de meta/resultado (não a soma), mas o score é igual ao de um indicador 'mensal' com os mesmos lançamentos", async () => {
+    dbMocks.listWeights.mockResolvedValue([{ id: 1, areaId: 1, perspectiveId: 1, weight: 1 }]);
+
+    dbMocks.listIndicators.mockResolvedValueOnce([
+      mkIndicator(10, { perspectiveId: 1, accumulationType: "anual" }),
+      mkIndicator(11, { perspectiveId: 1 }),
+    ]);
+    dbMocks.listEntries.mockResolvedValueOnce([mkEntry(10, 1, 100, 80), mkEntry(10, 2, 90, 80)]);
+    const snapAnual = await buildCompanySnapshot(1, 2026, 2, null, "ytd");
+    const ind10Anual = snapAnual.indicatorScores.find((s) => s.indicatorId === 10)!;
+    expect(ind10Anual.goal).toBeCloseTo(95); // média de 100 e 90 — não a soma (190)
+    expect(ind10Anual.result).toBeCloseTo(80); // média de 80 e 80
+
+    // Mesmos lançamentos, mesmo indicador só que tipo "mensal" (soma) — score deve dar idêntico,
+    // porque Σresultado/Σmeta é matematicamente igual a média/média (só a exibição muda).
+    dbMocks.listIndicators.mockResolvedValueOnce([
+      mkIndicator(10, { perspectiveId: 1, accumulationType: "mensal" }),
+      mkIndicator(11, { perspectiveId: 1 }),
+    ]);
+    dbMocks.listEntries.mockResolvedValueOnce([mkEntry(10, 1, 100, 80), mkEntry(10, 2, 90, 80)]);
+    const snapMensal = await buildCompanySnapshot(1, 2026, 2, null, "ytd");
+    const ind10Mensal = snapMensal.indicatorScores.find((s) => s.indicatorId === 10)!;
+    expect(ind10Mensal.goal).toBe(190); // soma
+    expect(ind10Mensal.result).toBe(160); // soma
+
+    expect(ind10Anual.score).toBe(ind10Mensal.score);
+  });
+
+  it("mode month com accumulationType 'anual' não faz média (um único mês) — mesmo comportamento do tipo mensal", async () => {
+    dbMocks.listWeights.mockResolvedValue([{ id: 1, areaId: 1, perspectiveId: 1, weight: 1 }]);
+    dbMocks.listIndicators.mockResolvedValueOnce([
+      mkIndicator(10, { perspectiveId: 1, accumulationType: "anual" }),
+      mkIndicator(11, { perspectiveId: 1 }),
+    ]);
+    dbMocks.listEntries.mockResolvedValueOnce([mkEntry(10, 2, 10, 12)]);
+
+    const snapshot = await buildCompanySnapshot(1, 2026, 2, null); // mode "month" (default)
+    const ind10 = snapshot.indicatorScores.find((s) => s.indicatorId === 10)!;
+    expect(ind10.goal).toBe(10);
+    expect(ind10.result).toBe(12);
   });
 });
 

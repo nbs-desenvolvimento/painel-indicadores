@@ -6,6 +6,7 @@
  * manualmente se o shape do server mudar.
  */
 import type {
+  AccumulationType,
   AreaScore,
   CalibrationRuleDef,
   Direction,
@@ -87,6 +88,7 @@ export interface Indicator {
   unit: string | null;
   scaleType: ScaleType;
   direction: Direction;
+  accumulationType: AccumulationType;
   objectiveId: number | null;
   calibrationRuleId: number | null;
   defaultGoal: number | null;

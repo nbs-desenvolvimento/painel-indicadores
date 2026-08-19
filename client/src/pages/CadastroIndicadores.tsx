@@ -32,7 +32,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { useApp } from "@/contexts/AppContext";
 import type { Area, CalibrationRule, Indicator, IndicatorAreaApplicability, Objective, Perspective } from "@/lib/apiTypes";
 import { trpcApi } from "@/lib/trpcApi";
-import { DIRECTION_LABELS, DIRECTIONS, SCALE_TYPE_LABELS, SCALE_TYPES, type Direction, type ScaleType } from "@/lib/calcEngine";
+import {
+  ACCUMULATION_TYPE_HELP,
+  ACCUMULATION_TYPE_LABELS,
+  ACCUMULATION_TYPES,
+  DIRECTION_LABELS,
+  DIRECTIONS,
+  SCALE_TYPE_LABELS,
+  SCALE_TYPES,
+  type AccumulationType,
+  type Direction,
+  type ScaleType,
+} from "@/lib/calcEngine";
 import { ArrowDown, ArrowUp, Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -67,6 +78,7 @@ interface IndicatorsApi {
           perspectiveId: number;
           scaleType: ScaleType;
           direction: Direction;
+          accumulationType: AccumulationType;
           objectiveId: number | null;
           calibrationRuleId: number | null;
           defaultGoal: number | null;
@@ -87,6 +99,7 @@ interface IndicatorsApi {
         perspectiveId?: number;
         scaleType?: ScaleType;
         direction?: Direction;
+        accumulationType?: AccumulationType;
         objectiveId?: number | null;
         calibrationRuleId?: number | null;
         defaultGoal?: number | null;
@@ -133,6 +146,7 @@ interface EditState {
   perspectiveId: string;
   scaleType: ScaleType;
   direction: Direction;
+  accumulationType: AccumulationType;
   objectiveId: string;
   calibrationRuleId: string;
   defaultGoal: string;
@@ -172,6 +186,7 @@ export default function CadastroIndicadores() {
     perspectiveId: "",
     scaleType: "higher_better_120",
     direction: "higher_better",
+    accumulationType: "mensal",
     objectiveId: NONE,
     calibrationRuleId: NONE,
     defaultGoal: "",
@@ -284,6 +299,7 @@ export default function CadastroIndicadores() {
       perspectiveId: parseInt(editing.perspectiveId),
       scaleType: editing.scaleType,
       direction: editing.direction,
+      accumulationType: editing.accumulationType,
       objectiveId: editing.objectiveId === NONE ? null : parseInt(editing.objectiveId),
       calibrationRuleId: editing.calibrationRuleId === NONE ? null : parseInt(editing.calibrationRuleId),
       defaultGoal: defaultGoalNum,
@@ -357,6 +373,7 @@ export default function CadastroIndicadores() {
                     perspectiveId: perspectives?.[0] ? String(perspectives[0].id) : "",
                     scaleType: "higher_better_120",
                     direction: "higher_better",
+                    accumulationType: "mensal",
                     objectiveId: NONE,
                     calibrationRuleId: rules?.[0] ? String(rules[0].id) : NONE,
                     defaultGoal: "",
@@ -522,6 +539,25 @@ export default function CadastroIndicadores() {
                     redução (ex.: custos, atrasos, acidentes) devem usar “Reduzir é positivo”.
                   </p>
                 </div>
+                <div className="space-y-1.5">
+                  <Label>Tipo de acumulação</Label>
+                  <Select
+                    value={editing.accumulationType}
+                    onValueChange={(v) => setEditing((p) => ({ ...p, accumulationType: v as AccumulationType }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ACCUMULATION_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {ACCUMULATION_TYPE_LABELS[t]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground pt-1">{ACCUMULATION_TYPE_HELP}</p>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>Meta padrão (opcional)</Label>
@@ -627,6 +663,7 @@ export default function CadastroIndicadores() {
                 <th className="text-left py-2 px-2 font-medium">Objetivo</th>
                 <th className="text-left py-2 px-2 font-medium">Regra de calibragem</th>
                 <th className="text-center py-2 px-2 font-medium w-24">Unidade</th>
+                <th className="text-center py-2 px-2 font-medium w-20">Tipo</th>
                 <th className="text-center py-2 px-2 font-medium w-20">Áreas</th>
                 <th className="text-right py-2 pl-2 font-medium w-24">Ações</th>
               </tr>
@@ -668,6 +705,17 @@ export default function CadastroIndicadores() {
                     {UNITS.find((u) => u.value === i.unit)?.label ?? i.unit}
                   </td>
                   <td className="py-2.5 px-2 text-center">
+                    <span
+                      className={`inline-flex items-center justify-center h-6 px-2 rounded-full text-xs font-medium ${
+                        i.accumulationType === "anual"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-secondary text-secondary-foreground"
+                      }`}
+                    >
+                      {i.accumulationType === "anual" ? "Anual" : "Mensal"}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-2 text-center">
                     <span className="inline-flex items-center justify-center min-w-7 h-6 px-1.5 rounded-full bg-secondary text-secondary-foreground text-xs font-medium">
                       {areaCountByIndicator.get(i.id) ?? 0}
                     </span>
@@ -685,6 +733,7 @@ export default function CadastroIndicadores() {
                           perspectiveId: String(i.perspectiveId),
                           scaleType: i.scaleType as ScaleType,
                           direction: i.direction,
+                          accumulationType: i.accumulationType ?? "mensal",
                           objectiveId: i.objectiveId ? String(i.objectiveId) : NONE,
                           calibrationRuleId: i.calibrationRuleId ? String(i.calibrationRuleId) : NONE,
                           defaultGoal: i.defaultGoal !== null && i.defaultGoal !== undefined ? String(i.defaultGoal) : "",

@@ -55,30 +55,76 @@ export interface PeriodRef {
 export type SnapshotMode = "month" | "ytd";
 
 /**
+ * Par meta/resultado agregado de um indicador em um período, com a
+ * quantidade de meses que contribuíram para cada soma (goal e result podem
+ * ter contagens diferentes — um mês pode ter só um dos dois preenchido).
+ * A contagem é o que permite, depois, exibir a MÉDIA em vez da SOMA para
+ * indicadores do tipo "anual" — ver `indicatorScores` em `buildCompanySnapshot`.
+ */
+interface AggregatedEntry {
+  goal: number | null;
+  result: number | null;
+  goalCount: number;
+  resultCount: number;
+}
+
+/**
  * Agrega meta/resultado de vários lançamentos mensais em um único par (soma).
  * Meses sem lançamento (ou com o campo vazio) são ignorados; se NENHUM mês do
  * intervalo tiver o campo preenchido, o agregado retorna null (sem dado),
  * mantendo a mesma semântica de "não lançado" usada no cálculo mensal.
+ *
+ * A soma aqui é a base do cálculo de score para QUALQUER tipo de indicador
+ * (mensal ou anual) — o atingimento Σresultado/Σmeta é matematicamente igual
+ * a média/média, então o score não muda entre os dois tipos. O que muda por
+ * tipo é só a exibição de meta/resultado agregados (soma vs. média), feita a
+ * partir de `goalCount`/`resultCount` em `buildCompanySnapshot`.
  */
 function aggregateYtdEntries(
   entries: { indicatorId: number; goal: number | null; result: number | null }[],
-): Map<number, { goal: number | null; result: number | null }> {
+): Map<number, AggregatedEntry> {
   const goalSums = new Map<number, number>();
   const resultSums = new Map<number, number>();
+  const goalCounts = new Map<number, number>();
+  const resultCounts = new Map<number, number>();
   for (const e of entries) {
     if (e.goal !== null && e.goal !== undefined) {
       goalSums.set(e.indicatorId, (goalSums.get(e.indicatorId) ?? 0) + e.goal);
+      goalCounts.set(e.indicatorId, (goalCounts.get(e.indicatorId) ?? 0) + 1);
     }
     if (e.result !== null && e.result !== undefined) {
       resultSums.set(e.indicatorId, (resultSums.get(e.indicatorId) ?? 0) + e.result);
+      resultCounts.set(e.indicatorId, (resultCounts.get(e.indicatorId) ?? 0) + 1);
     }
   }
   const ids = new Set(Array.from(goalSums.keys()).concat(Array.from(resultSums.keys())));
-  const map = new Map<number, { goal: number | null; result: number | null }>();
+  const map = new Map<number, AggregatedEntry>();
   for (const id of Array.from(ids)) {
-    map.set(id, { goal: goalSums.get(id) ?? null, result: resultSums.get(id) ?? null });
+    map.set(id, {
+      goal: goalSums.get(id) ?? null,
+      result: resultSums.get(id) ?? null,
+      goalCount: goalCounts.get(id) ?? 0,
+      resultCount: resultCounts.get(id) ?? 0,
+    });
   }
   return map;
+}
+
+/** Normaliza os lançamentos de um único mês para o mesmo formato agregado do YTD (count = 1 quando há valor). */
+function toSingleEntryMap(
+  entries: { indicatorId: number; goal: number | null; result: number | null }[],
+): Map<number, AggregatedEntry> {
+  return new Map(
+    entries.map((e) => [
+      e.indicatorId,
+      {
+        goal: e.goal,
+        result: e.result,
+        goalCount: e.goal !== null && e.goal !== undefined ? 1 : 0,
+        resultCount: e.result !== null && e.result !== undefined ? 1 : 0,
+      },
+    ]),
+  );
 }
 
 /**
@@ -129,8 +175,8 @@ export async function buildCompanySnapshot(
   // No modo ytd, listEntries(indicatorIds, year) traz o ano inteiro; restringe a jan..month.
   const entries = mode === "ytd" ? rawEntries.filter((e) => e.month <= month) : rawEntries;
 
-  const entryMap: Map<number, { goal: number | null; result: number | null }> =
-    mode === "ytd" ? aggregateYtdEntries(entries) : new Map(entries.map((e) => [e.indicatorId, e]));
+  const entryMap: Map<number, AggregatedEntry> =
+    mode === "ytd" ? aggregateYtdEntries(entries) : toSingleEntryMap(entries);
   const weightMapByArea = new Map<number, Map<number, number>>();
   for (const w of weights) {
     if (!weightMapByArea.has(w.areaId)) weightMapByArea.set(w.areaId, new Map());
@@ -179,9 +225,22 @@ export async function buildCompanySnapshot(
   );
   const visibleIndicators = activeIndicators.filter((ind) => visibleIndicatorIds.has(ind.id));
 
-  // Indicator-level detail (independent of area)
+  // Indicator-level detail (independent of area). O score sempre usa a SOMA
+  // agregada (entry.goal/entry.result) — é matematicamente igual à média,
+  // então não há necessidade de recalcular por tipo. Já a META/RESULTADO
+  // exibidos são a soma para indicadores "mensal" e a média para "anual",
+  // dividindo pela quantidade de meses que de fato tiveram lançamento.
   const indicatorScores = visibleIndicators.map((ind) => {
     const entry = entryMap.get(ind.id);
+    const useAverage = mode === "ytd" && ind.accumulationType === "anual";
+    const displayGoal =
+      useAverage && entry && entry.goal !== null && entry.goalCount > 0
+        ? entry.goal / entry.goalCount
+        : (entry?.goal ?? null);
+    const displayResult =
+      useAverage && entry && entry.result !== null && entry.resultCount > 0
+        ? entry.result / entry.resultCount
+        : (entry?.result ?? null);
     return {
       indicatorId: ind.id,
       name: ind.name,
@@ -189,8 +248,8 @@ export async function buildCompanySnapshot(
       unit: ind.unit,
       scaleType: ind.scaleType as ScaleType,
       ruleName: ind.calibrationRuleId ? (ruleNameMap.get(ind.calibrationRuleId) ?? null) : null,
-      goal: entry?.goal ?? null,
-      result: entry?.result ?? null,
+      goal: displayGoal,
+      result: displayResult,
       score: scoreOf(ind, ruleMap, entry?.goal ?? null, entry?.result ?? null),
     };
   });

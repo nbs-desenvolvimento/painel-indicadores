@@ -112,6 +112,17 @@ export const DIRECTION_LABELS: Record<Direction, string> = {
   lower_better: "Reduzir é positivo",
 };
 
+/* ------------------ Tipo de acumulação (visão Acumulado/YTD) -------------- */
+
+export const ACCUMULATION_TYPES = ["mensal", "anual"] as const;
+
+export type AccumulationType = (typeof ACCUMULATION_TYPES)[number];
+
+export const ACCUMULATION_TYPE_LABELS: Record<AccumulationType, string> = {
+  mensal: "Mensal (soma no acumulado)",
+  anual: "Anual (média no acumulado)",
+};
+
 /* ------------------- Regras de calibragem configuráveis ------------------- */
 
 export interface CalibrationRange {

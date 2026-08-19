@@ -112,6 +112,21 @@ export const DIRECTION_LABELS: Record<Direction, string> = {
   lower_better: "Reduzir é positivo",
 };
 
+/* ------------------ Tipo de acumulação (visão Acumulado/YTD) -------------- */
+
+export const ACCUMULATION_TYPES = ["mensal", "anual"] as const;
+
+export type AccumulationType = (typeof ACCUMULATION_TYPES)[number];
+
+export const ACCUMULATION_TYPE_LABELS: Record<AccumulationType, string> = {
+  mensal: "Mensal (soma no acumulado)",
+  anual: "Anual (média no acumulado)",
+};
+
+export const ACCUMULATION_TYPE_HELP =
+  "Mensal: cada mês é uma fatia de um total (ex.: vendas do mês) — a visão Acumulado soma os meses. " +
+  "Anual: o valor mensal é recorrente/ajustável (ex.: nota, taxa) — a visão Acumulado mostra a média dos meses lançados.";
+
 /* ------------------- Regras de calibragem configuráveis ------------------- */
 
 export interface CalibrationRange {

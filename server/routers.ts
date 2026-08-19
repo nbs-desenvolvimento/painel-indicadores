@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { DIRECTIONS, SCALE_TYPES } from "./calcEngine";
+import { ACCUMULATION_TYPES, DIRECTIONS, SCALE_TYPES } from "./calcEngine";
 import { signAuthToken } from "./_core/auth";
 import type { TrpcContext } from "./_core/context";
 import { systemRouter } from "./_core/systemRouter";
@@ -53,6 +53,7 @@ const USER_INACTIVE_MSG = "Usuário desativado. Fale com o administrador.";
 
 const scaleTypeSchema = z.enum(SCALE_TYPES);
 const directionSchema = z.enum(DIRECTIONS);
+const accumulationTypeSchema = z.enum(ACCUMULATION_TYPES);
 const rangeSchema = z.object({
   minAttainment: z.number().nullable(),
   minInclusive: z.boolean(),
@@ -298,6 +299,7 @@ export const appRouter = router({
           unit: z.string().optional(),
           scaleType: scaleTypeSchema,
           direction: directionSchema,
+          accumulationType: accumulationTypeSchema.optional(),
           objectiveId: z.number().nullable().optional(),
           calibrationRuleId: z.number().nullable().optional(),
           defaultGoal: z.number().nullable().optional(),
@@ -315,6 +317,7 @@ export const appRouter = router({
           unit: z.string().optional(),
           scaleType: scaleTypeSchema.optional(),
           direction: directionSchema.optional(),
+          accumulationType: accumulationTypeSchema.optional(),
           objectiveId: z.number().nullable().optional(),
           calibrationRuleId: z.number().nullable().optional(),
           defaultGoal: z.number().nullable().optional(),
